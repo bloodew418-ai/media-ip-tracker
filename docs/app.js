@@ -2,6 +2,7 @@ const STORAGE_KEY = 'media-ip-tracker-v2-saved';
 const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
 const mediaOrder = ['漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
 const judgementMedia = ['漫画', 'アニメ', 'ドラマ', '映画', '小説'];
+// Japan-focused confirmation links stay primary; raw data sources stay auxiliary.
 const commonConfirmProviders = [
   ['Googleで確認', 'https://www.google.com/search?q='],
   ['Wikipediaで確認', 'https://ja.wikipedia.org/wiki/Special:Search?search='],
@@ -105,6 +106,7 @@ function japaneseConfirmLinks(title, media = '') {
   const specific = isReadingMedia(media) ? bookConfirmProviders : videoConfirmProviders;
   return [...providerLinks(commonConfirmProviders, title), ...providerLinks(specific, title)];
 }
+// Keep primary confirmation links visible and collapse service-specific links.
 function primaryConfirmLinks(title) { return providerLinks(commonConfirmProviders, title); }
 function secondaryConfirmLinks(title, media = '') { return providerLinks(isReadingMedia(media) ? bookConfirmProviders : videoConfirmProviders, title); }
 function zeroConfirmLinks(title) { return [...providerLinks(commonConfirmProviders, title), ...providerLinks(videoConfirmProviders, title)]; }
