@@ -10,6 +10,32 @@
 
 GitHub Pages で公開できるよう、アプリ本体は `/docs` 配下に配置しています。`docs/index.html` を開くとローカルでも利用できます。
 
+### GitHub Pages 公開URL
+
+この作業環境では Git remote が未設定で、GitHubユーザー名を確定できませんでした。リポジトリ名は `media-ip-tracker` です。
+
+- 想定URL: `https://<GitHubユーザー名>.github.io/media-ip-tracker/`
+- GitHub Pages が有効化済みの場合は、GitHub の Settings > Pages に表示される公開URLを正とします。
+
+### GitHub Pages 設定手順
+
+1. GitHub のリポジトリ画面で Settings を開きます。
+2. Pages を開きます。
+3. Build and deployment で Source に `Deploy from a branch` を選択します。
+4. Branch に `main` を選択します。
+5. Folder に `/docs` を選択します。
+6. Save を押します。
+
+### 公開後の確認項目
+
+- ページが開けること。
+- 作品グループ一覧が表示されること。
+- サンプルデータ読込ができること。
+- `localStorage` 保存ができること。
+- JSONエクスポート/インポートができること。
+- 検索リンクが別タブで開くこと。
+- 390px/360px幅で横スクロールしないこと。
+
 ## 主な機能
 
 - 作品グループの新規作成、編集、削除
