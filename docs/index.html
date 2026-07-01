@@ -24,24 +24,32 @@
     <section id="homeView" class="view active hero" aria-labelledby="homeTitle">
       <p class="eyebrow">漫画・アニメ・ドラマ・映画・小説を横断検索</p>
       <h1 id="homeTitle">作品名から媒体別の候補を探す</h1>
-      <p class="lead">公開APIの検索結果を媒体別に整理します。配信中・販売中とは断定せず、NetflixやAmazonなどは検索リンクとして開きます。</p>
-      <form id="searchForm" class="search-box">
+      <p class="lead">保存や登録の前に、まず検索結果をその場で閲覧できます。公開APIの候補を媒体別に整理し、NetflixやAmazonなどは探すリンクとして開きます。</p>
+      <form id="searchForm" class="search-box" aria-describedby="homeSearchHint">
         <label class="sr-only" for="queryInput">作品名</label>
         <input id="queryInput" type="search" required placeholder="例：葬送のフリーレン / Dune / 君たちはどう生きるか" autocomplete="off">
-        <button class="primary" type="submit">検索する</button>
+        <button class="primary search-submit" type="submit">検索する</button>
       </form>
-      <div class="notice-grid">
-        <div class="panel"><h2>無料で使える検索元</h2><p>AniList、Google Books、Wikidataはキーなしで利用できます。</p></div>
-        <div class="panel"><h2>TMDbは任意</h2><p>映画・ドラマ検索を強化する場合のみ、設定画面でRead Access Tokenを保存します。</p></div>
-        <div class="panel"><h2>保存はブラウザ内</h2><p>保存済み作品とAPI設定はlocalStorageに保存されます。ログインやクラウド同期はありません。</p></div>
-      </div>
+      <p id="homeSearchHint" class="search-hint">検索結果は保存しなくても閲覧できます。保存・お気に入り・進捗管理は結果を見た後の任意操作です。</p>
+      <details class="secondary-tools">
+        <summary>検索で見つからない場合・データ管理</summary>
+        <div class="notice-grid compact">
+          <div class="panel"><h2>無料で使える検索元</h2><p>AniList、Google Books、Wikidataはキーなしで利用できます。</p></div>
+          <div class="panel"><h2>TMDbは任意</h2><p>映画・ドラマ検索を強化する場合のみ、設定画面でRead Access Tokenを保存します。</p></div>
+          <div class="panel"><h2>補助操作</h2><p><button id="homeManualAddBtn" type="button">手動で補助保存</button> <button data-route="data" type="button">データ管理</button></p></div>
+        </div>
+      </details>
+      <section class="saved-preview" aria-labelledby="homeSavedTitle">
+        <div class="section-head compact-head"><div><p class="eyebrow">Saved</p><h2 id="homeSavedTitle">最近保存した作品</h2></div><button data-route="saved" type="button">保存済みを開く</button></div>
+        <div id="homeSavedPreview" class="mini-list"></div>
+      </section>
     </section>
 
     <section id="resultsView" class="view" aria-live="polite">
       <div class="result-hero">
         <p class="eyebrow">検索結果</p>
         <h1 id="resultTitle">作品名</h1>
-        <div class="result-title-row"><p id="resultSummary" class="lead"></p><button id="resultFavoriteBtn" class="favorite-btn" type="button">☆ お気に入り</button></div>
+        <div class="result-title-row"><p id="resultSummary" class="lead"></p><button id="resultFavoriteBtn" class="favorite-btn" type="button">☆ 作品をお気に入り</button></div>
       </div>
       <nav id="toc" class="toc" aria-label="検索結果の目次"></nav>
       <div id="searchStatus" class="message" role="status"></div>
@@ -49,7 +57,7 @@
     </section>
 
     <section id="savedView" class="view" aria-labelledby="savedTitle">
-      <div class="section-head"><div><p class="eyebrow">Library</p><h1 id="savedTitle">保存済み作品IP</h1></div><button id="manualAddBtn" class="primary">手動で補助登録</button></div>
+      <div class="section-head"><div><p class="eyebrow">Library</p><h1 id="savedTitle">保存済み作品IP</h1></div><button id="manualAddBtn">検索で見つからない場合はこちら</button></div>
       <label class="filter-line"><input id="favoriteOnlyFilter" type="checkbox"> お気に入りのみ表示</label>
       <div id="savedList" class="card-grid"></div>
     </section>
@@ -85,7 +93,7 @@
 
   <dialog id="manualDialog">
     <form method="dialog" id="manualForm" class="editor-form">
-      <h2>手動で補助登録</h2>
+      <h2>検索で見つからない作品を手動保存</h2>
       <label>作品名<input name="title" required></label>
       <label>媒体<select name="media"><option>漫画</option><option>アニメ</option><option>ドラマ</option><option>映画</option><option>小説</option></select></label>
       <label>メモ<textarea name="memo" rows="4"></textarea></label>

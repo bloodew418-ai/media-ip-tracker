@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'media-ip-tracker-v2-saved';
 const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
-const mediaOrder = ['概要', '漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
+const mediaOrder = ['漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
 const providers = [
   ['Netflixで探す', 'https://www.netflix.com/search?q='],
   ['Amazonで探す', 'https://www.amazon.co.jp/s?k='],
@@ -63,6 +63,11 @@ function ensureGroup(title) {
 function findSavedItem(item) {
   return saved.flatMap(group => group.items.map(savedItem => ({group, item: savedItem}))).find(pair => pair.item.id === item.id || (pair.item.sourceUrl && pair.item.sourceUrl === item.sourceUrl));
 }
+function savedStatusHtml(item) {
+  const savedPair = findSavedItem(item);
+  if (!savedPair) return '<p class="muted save-note">進捗状態は保存後に設定できます。</p>';
+  return statusSelectHtml(savedPair.item, 'results');
+}
 function statusSelectHtml(item, context) {
   const savedPair = findSavedItem(item);
   const status = savedPair?.item.status || item.status || defaultStatus(item.media);
@@ -72,6 +77,7 @@ function statusSelectHtml(item, context) {
 function route(name) {
   document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
   $(`#${name}View`)?.classList.add('active');
+  if (name === 'home') renderHomeSavedPreview();
   if (name === 'saved') renderSaved();
   if (name === 'settings') $('#tmdbTokenInput').value = localStorage.getItem(TMDB_TOKEN_KEY) || '';
   window.scrollTo({top: 0, behavior: 'smooth'});
@@ -91,7 +97,7 @@ async function searchAll(query) {
     if (result.status === 'fulfilled') mergeBuckets(buckets, result.value);
     else buckets.sources.push(sourceLink(`検索エラー: ${result.reason.message}`, '#'));
   });
-  buckets.sources.push(...mediaOrder.slice(1, 6).flatMap(media => buckets[media]).flatMap(item => item.sources || []));
+  buckets.sources.push(...['漫画', 'アニメ', 'ドラマ', '映画', '小説'].flatMap(media => buckets[media]).flatMap(item => item.sources || []));
   buckets.sources = uniqueBy(buckets.sources, item => `${item.name}-${item.url}`);
   buckets.genres = Array.from(buckets.genres).slice(0, 16);
   buckets.similar = uniqueBy(buckets.similar, item => `${item.title}-${item.media}`).slice(0, 12);
@@ -175,25 +181,22 @@ function renderResults(data) {
   lastResult = data;
   currentResultGroupId = findGroupByTitle(data.query)?.id || null;
   $('#resultTitle').textContent = data.query;
-  $('#resultSummary').textContent = `${countResults(data)}件の候補を媒体別に表示しています。情報は外部公開データの検索候補であり、配信中・販売中の保証ではありません。`;
+  $('#resultSummary').textContent = `検索結果は保存不要で閲覧できます。${countResults(data)}件の媒体別候補を表示しています。保存は後から任意で行えます。`;
   $('#toc').innerHTML = mediaOrder.map(label => `<a href="#sec-${esc(label)}">${esc(label)}</a>`).join('');
-  $('#resultsContent').innerHTML = [overviewSection(data), ...['漫画','アニメ','ドラマ','映画','小説'].map(media => mediaSection(media, data[media], data.query)), relatedSection('類似作品', data.similar), genreSection(data), sourceSection(data)].join('');
+  $('#resultsContent').innerHTML = [...['漫画','アニメ','ドラマ','映画','小説'].map(media => mediaSection(media, data[media], data.query)), relatedSection('類似作品', data.similar), genreSection(data), sourceSection(data)].join('');
   renderResultFavorite();
   $('#searchStatus').textContent = '検索が完了しました。';
   route('results');
 }
 function countResults(data) { return ['漫画','アニメ','ドラマ','映画','小説'].reduce((sum, key) => sum + data[key].length, 0); }
-function overviewSection(data) {
-  return `<section id="sec-概要" class="panel"><h2>概要</h2><p>検索語: <strong>${esc(data.query)}</strong></p><div class="card-grid small">${data.overview.map(item => `<article class="mini-card"><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.sourceName)}を開く</a></article>`).join('') || '<p class="muted">Wikidataの概要候補は見つかりませんでした。</p>'}</div></section>`;
-}
 function mediaSection(media, items, query) {
   return `<section id="sec-${media}" class="panel"><div class="section-head"><h2>${media}</h2><span class="count">${items.length}件</span></div><div class="card-grid">${items.map(itemCard).join('') || emptyMedia(media, query)}</div></section>`;
 }
 function itemCard(item) {
   const normalized = normalizeItem(item);
-  return `<article class="card"><div class="card-title"><h3>${esc(normalized.title)}</h3><span class="chip">${esc(normalized.media)}</span></div><p class="muted">${esc([normalized.year, normalized.sourceName].filter(Boolean).join(' / '))}</p>${statusSelectHtml(normalized, 'results')}<p>${esc(normalized.description || '説明文は取得できませんでした。')}</p><div class="chips">${(normalized.genres || []).slice(0, 5).map(genre => `<span class="chip">${esc(genre)}</span>`).join('')}</div><div class="button-row"><button class="primary" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalized)})`)}">候補を保存</button><a class="link-button" href="${esc(normalized.sourceUrl)}" target="_blank" rel="noopener">出典</a></div><details><summary>閲覧/購入検索リンク</summary><div class="search-links">${(normalized.links || []).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></details></article>`;
+  return `<article class="card"><div class="card-title"><h3>${esc(normalized.title)}</h3><span class="chip">${esc(normalized.media)}</span></div><p class="muted">${esc([normalized.year, normalized.sourceName].filter(Boolean).join(' / '))}</p>${savedStatusHtml(normalized)}<p>${esc(normalized.description || '説明文は取得できませんでした。')}</p><div class="chips">${(normalized.genres || []).slice(0, 5).map(genre => `<span class="chip">${esc(genre)}</span>`).join('')}</div><div class="button-row"><button class="save-button" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalized)})`)}">この作品を保存</button><a class="link-button" href="${esc(normalized.sourceUrl)}" target="_blank" rel="noopener">出典リンク</a></div><details open><summary>探すリンク</summary><div class="search-links">${(normalized.links || []).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></details></article>`;
 }
-function emptyMedia(media, query) { return `<div class="empty">${esc(media)}候補は見つかりませんでした。<div class="search-links single">${searchLinks(query).slice(0, 3).map(link => `<a class="link-button" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(link.label)}</a>`).join('')}</div></div>`; }
+function emptyMedia(media, query) { return `<div class="empty"><strong>候補なし</strong><br>${esc(media)}の検索候補は見つかりませんでした。<div class="search-links single">${searchLinks(query).slice(0, 3).map(link => `<a class="link-button" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(link.label)}</a>`).join('')}</div></div>`; }
 function relatedSection(title, items) { return `<section id="sec-${title}" class="panel"><h2>${title}</h2><div class="card-grid small">${items.map(item => `<article class="mini-card"><h3>${esc(item.title)}</h3><p>${esc(item.media)} / ${esc(item.reason)}</p><a href="${esc(item.url)}" target="_blank" rel="noopener">出典を開く</a></article>`).join('') || '<p class="muted">類似作品候補はまだありません。</p>'}</div></section>`; }
 function genreSection(data) { return `<section id="sec-同ジャンル作品" class="panel"><h2>同ジャンル作品</h2><p class="muted">ジャンル語から再検索できます。</p><div class="chips genre-links">${data.genres.map(genre => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(genre)})`)}">${esc(genre)}</button>`).join('') || '<span>ジャンル候補はありません。</span>'}</div></section>`; }
 function sourceSection(data) { return `<section id="sec-出典" class="panel"><h2>出典</h2><div class="mini-list">${data.sources.map(src => `<div class="mini-item"><a target="_blank" rel="noopener" href="${esc(src.url)}">${esc(src.name)}</a><small>${esc(src.checkedAt)}</small></div>`).join('')}</div></section>`; }
@@ -208,7 +211,8 @@ function saveCandidate(item) {
   currentResultGroupId = group.id;
   persistSaved();
   renderResultFavorite();
-  alert('作品グループに候補を保存しました。');
+  alert('検索結果の候補を保存しました。お気に入りや進捗状態を保持できます。');
+  renderResults(lastResult);
 }
 function changeItemStatus(item, status, context) {
   const group = ensureGroup(lastResult?.query || item.title);
@@ -226,7 +230,7 @@ function renderResultFavorite() {
   const button = $('#resultFavoriteBtn');
   if (!button || !lastResult) return;
   const group = currentResultGroupId ? saved.find(savedGroup => savedGroup.id === currentResultGroupId) : findGroupByTitle(lastResult.query);
-  button.textContent = group?.isFavorite ? '★ お気に入り' : '☆ お気に入り';
+  button.textContent = group?.isFavorite ? '★ 作品をお気に入り' : '☆ 作品をお気に入り';
   button.classList.toggle('active', Boolean(group?.isFavorite));
 }
 function toggleResultFavorite() {
@@ -246,6 +250,17 @@ async function runSearch(query) {
   route('results');
   renderResults(await searchAll(query));
 }
+
+function renderHomeSavedPreview() {
+  const target = $('#homeSavedPreview');
+  if (!target) return;
+  const recent = saved.slice(0, 3);
+  target.innerHTML = recent.length ? recent.map(group => {
+    const index = saved.findIndex(savedGroup => savedGroup.id === group.id);
+    return `<div class="mini-item"><span><strong>${esc(group.title)}</strong><br><small>${group.items.length}件の媒体候補 / ${group.isFavorite ? 'お気に入り' : '通常'}</small></span><button onclick="renderDetail(${index})">開く</button></div>`;
+  }).join('') : '<div class="empty">保存済み作品はまだありません。まず作品名を検索してください。</div>';
+}
+
 function renderSaved() {
   const favoriteOnly = $('#favoriteOnlyFilter')?.checked;
   const groups = favoriteOnly ? saved.filter(group => group.isFavorite) : saved;
@@ -307,10 +322,12 @@ function setup() {
   $('#favoriteOnlyFilter').onchange = renderSaved;
   $('#resultFavoriteBtn').onclick = toggleResultFavorite;
   $('#manualAddBtn').onclick = () => $('#manualDialog').showModal();
+  $('#homeManualAddBtn').onclick = () => $('#manualDialog').showModal();
+  renderHomeSavedPreview();
   $('#manualForm').addEventListener('submit', event => {
     if (event.submitter?.value !== 'save') return;
     const form = new FormData(event.target);
-    saved.unshift(normalizeGroup({id: uid('group'), title: form.get('title'), isFavorite: false, items: [{id: uid('manual'), title: form.get('title'), media: form.get('media'), memo: form.get('memo'), sourceName: '手動補助登録', savedAt: new Date().toISOString()}]}));
+    saved.unshift(normalizeGroup({id: uid('group'), title: form.get('title'), isFavorite: false, items: [{id: uid('manual'), title: form.get('title'), media: form.get('media'), memo: form.get('memo'), sourceName: '手動補助保存', savedAt: new Date().toISOString()}]}));
     persistSaved();
     event.target.reset();
     renderSaved();
