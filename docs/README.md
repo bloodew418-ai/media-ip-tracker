@@ -4,10 +4,7 @@
 
 ## 公開URL
 
-この作業環境では Git remote が未設定で、GitHubユーザー名を確定できませんでした。リポジトリ名は `media-ip-tracker` です。
-
-- 想定URL: `https://<GitHubユーザー名>.github.io/media-ip-tracker/`
-- GitHub Pages が有効化済みの場合は、GitHub の Settings > Pages に表示される公開URLを正とします。
+- 公開URL: `https://bloodew418-ai.github.io/media-ip-tracker/`
 
 ## 方針
 
