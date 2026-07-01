@@ -1,45 +1,4 @@
 {
-  "version": 1,
-  "updatedAt": "2026-07-01T00:00:00.000Z",
-  "groups": [
-    {
-      "id": "sample-1",
-      "title": "銀河探偵ミナト",
-      "aliases": ["Ginga Detective Minato"],
-      "tags": ["SF", "ミステリ"],
-      "status": "優先候補",
-      "note": "媒体ごとの違いを確認したい作品IP。",
-      "spoilerNote": "最終章の真相メモをここに分離して保存。",
-      "media": [
-        {
-          "id": "media-1",
-          "type": "漫画",
-          "role": "原作",
-          "title": "銀河探偵ミナト",
-          "year": "2021",
-          "status": "途中",
-          "rating": "4",
-          "memo": "3巻まで確認。",
-          "links": [
-            {"id":"link-1","label":"公式サイトを確認","url":"https://example.com/","kind":"公式","checkedAt":"2026-07-01","status":"確認済み"}
-          ],
-          "sources": [
-            {"id":"source-1","name":"公式サイト","url":"https://example.com/","kind":"公式","checkedAt":"2026-07-01","memo":"サンプル用URL"}
-          ]
-        },
-        {
-          "id": "media-2",
-          "type": "アニメ",
-          "role": "アニメ化",
-          "title": "銀河探偵ミナト TVアニメ",
-          "year": "2024",
-          "status": "未読/未視聴",
-          "rating": "",
-          "memo": "検索リンクから確認予定。",
-          "links": [],
-          "sources": []
-        }
-      ]
-    }
-  ]
+  "version": 2,
+  "saved": []
 }

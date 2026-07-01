@@ -1,35 +1,212 @@
-const STORAGE_KEY = 'media-ip-tracker-data-v1';
-const groupStatuses = ['未チェック','気になる','優先候補','保留','除外'];
-const mediaStatuses = ['未読/未視聴','途中','完了','中断','見直したい','除外'];
-const mediaTypes = ['漫画','アニメ','ドラマ','映画','小説','その他'];
-const mediaRoles = ['原作','アニメ化','実写化','続編','スピンオフ','リメイク','その他'];
-const linkStatuses = ['確認済み','検索リンク','手動登録','未確認','利用不可'];
-const searchProviders = [
-  ['楽天ブックスで探す','https://books.rakuten.co.jp/search?sitem='],['Google Booksで探す','https://www.google.com/search?tbm=bks&q='],['Amazonで探す','https://www.amazon.co.jp/s?k='],['ebookjapanで探す','https://ebookjapan.yahoo.co.jp/search/?keyword='],['BOOK☆WALKERで探す','https://bookwalker.jp/search/?word='],['Prime Videoで探す','https://www.amazon.co.jp/s?k='],['Netflixで探す','https://www.netflix.com/search?q='],['U-NEXTで探す','https://video.unext.jp/freeword?query='],['Disney+で探す','https://www.disneyplus.com/ja-jp/search/'],['Huluで探す','https://www.hulu.jp/search?q='],['JustWatchで探す','https://www.justwatch.com/jp/search?q='],['Filmarksで探す','https://filmarks.com/search?utf8=%E2%9C%93&q=']
+const STORAGE_KEY = 'media-ip-tracker-v2-saved';
+const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
+const mediaOrder = ['概要', '漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
+const providers = [
+  ['Netflixで探す', 'https://www.netflix.com/search?q='],
+  ['Amazonで探す', 'https://www.amazon.co.jp/s?k='],
+  ['Prime Videoで探す', 'https://www.amazon.co.jp/s?k='],
+  ['楽天ブックスで探す', 'https://books.rakuten.co.jp/search?sitem='],
+  ['Google Booksで探す', 'https://www.google.com/search?tbm=bks&q='],
+  ['JustWatchで探す', 'https://www.justwatch.com/jp/search?q='],
+  ['Filmarksで探す', 'https://filmarks.com/search?utf8=%E2%9C%93&q=']
 ];
-let state = loadData();
-let currentGroupId = null;
-const $ = s => document.querySelector(s);
-const uid = p => `${p}-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const csv = v => String(v || '').split(',').map(x=>x.trim()).filter(Boolean);
-function loadData(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {version:1,groups:[]}}catch{return {version:1,groups:[]}}}
-function save(){state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}
-function optionHtml(items, selected=''){return items.map(i=>`<option ${i===selected?'selected':''}>${esc(i)}</option>`).join('')}
-function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); $(id).classList.add('active'); window.scrollTo(0,0)}
-function init(){ $('#mediaFilter').innerHTML = '<option value="">すべて</option>'+optionHtml(mediaTypes); $('#groupStatusFilter').innerHTML='<option value="">すべて</option>'+optionHtml(groupStatuses); ['titleSearch','tagSearch','mediaFilter','groupStatusFilter'].forEach(id=>$('#'+id).addEventListener('input',renderList)); $('#addGroupBtn').onclick=()=>openGroupForm(); $('#dataViewBtn').onclick=()=>show('#dataView'); document.querySelectorAll('.backBtn').forEach(b=>b.onclick=()=> currentGroupId && b.closest('#mediaFormView') ? renderDetail(currentGroupId) : show('#listView')); $('#exportBtn').onclick=exportJson; $('#importBtn').onclick=importJson; $('#loadSampleBtn').onclick=loadSample; renderList();}
-function filteredGroups(){const title=$('#titleSearch').value.toLowerCase(), tag=$('#tagSearch').value.toLowerCase(), type=$('#mediaFilter').value, status=$('#groupStatusFilter').value; return state.groups.filter(g => (!title || [g.title,...(g.aliases||[])].join(' ').toLowerCase().includes(title)) && (!tag || (g.tags||[]).join(' ').toLowerCase().includes(tag)) && (!type || (g.media||[]).some(m=>m.type===type)) && (!status || g.status===status));}
-function renderList(){const list=$('#groupList'), groups=filteredGroups(); list.innerHTML = groups.length ? groups.map(g=>`<article class="card"><h3>${esc(g.title)}</h3><div class="chips"><span class="chip status">${esc(g.status)}</span>${(g.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div><p class="muted">媒体版 ${(g.media||[]).length}件 / 別名 ${(g.aliases||[]).join('、') || 'なし'}</p><div class="button-row"><button onclick="renderDetail('${g.id}')" class="primary">詳細</button><button onclick="openGroupForm('${g.id}')">編集</button></div></article>`).join('') : '<div class="empty panel">条件に合う作品グループはありません。</div>';}
-function renderDetail(id){currentGroupId=id; const g=state.groups.find(x=>x.id===id); if(!g)return show('#listView'); const q=encodeURIComponent(g.title); $('#detailContent').innerHTML=`<div class="detail-grid"><div class="stack"><div class="panel"><h2 id="detailTitle">${esc(g.title)}</h2><div class="chips"><span class="chip status">${esc(g.status)}</span>${(g.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div><p><b>別名:</b> ${esc((g.aliases||[]).join('、')||'なし')}</p><p><b>ネタバレなしメモ:</b><br>${esc(g.note||'')}</p><details><summary>ネタバレありメモ</summary><p>${esc(g.spoilerNote||'')}</p></details><div class="button-row"><button onclick="openGroupForm('${g.id}')">作品グループ編集</button><button onclick="deleteGroup('${g.id}')" class="danger">削除</button><button onclick="openMediaForm('${g.id}')" class="primary">媒体版追加</button></div></div><section class="panel"><h3>媒体版</h3><div class="media-list">${(g.media||[]).map(m=>mediaHtml(g,m)).join('')||'<p class="muted">媒体版は未登録です。</p>'}</div></section></div><aside class="panel"><h3>検索リンク</h3><p class="muted">検索結果を開くリンクです。見られる・買えることは断定しません。</p><div class="search-links">${searchProviders.map(([label,url])=>`<a class="link-button" target="_blank" rel="noopener" href="${url}${q}">${label}</a>`).join('')}</div></aside></div>`; show('#detailView');}
-function mediaHtml(g,m){return `<article class="media-card"><h4>${esc(m.title||g.title)}</h4><div class="chips"><span class="chip">${esc(m.type)}</span><span class="chip">${esc(m.role)}</span><span class="chip status">${esc(m.status)}</span>${m.year?`<span class="chip">${esc(m.year)}</span>`:''}${m.rating?`<span class="chip">評価 ${esc(m.rating)}</span>`:''}</div><p>${esc(m.memo||'')}</p><h5>見る/買うリンク</h5><div class="mini-list">${(m.links||[]).map(l=>`<div class="mini-item"><a target="_blank" rel="noopener" href="${esc(l.url)}">${esc(l.label)}</a><br><small>${esc(l.kind)} / ${esc(l.status)} / ${esc(l.checkedAt||'未確認')}</small></div>`).join('')||'<small class="muted">未登録</small>'}</div><h5>出典</h5><div class="mini-list">${(m.sources||[]).map(s=>`<div class="mini-item"><a target="_blank" rel="noopener" href="${esc(s.url)}">${esc(s.name)}</a><br><small>${esc(s.kind)} / ${esc(s.checkedAt||'未確認')} ${esc(s.memo||'')}</small></div>`).join('')||'<small class="muted">未登録</small>'}</div><div class="button-row"><button onclick="openMediaForm('${g.id}','${m.id}')">編集</button><button class="danger" onclick="deleteMedia('${g.id}','${m.id}')">削除</button></div></article>`}
-function openGroupForm(id){const g=id?state.groups.find(x=>x.id===id):{status:'未チェック'}; $('#groupForm').innerHTML=`<input name="id" type="hidden" value="${esc(g.id||'')}"><label>代表タイトル<input name="title" required value="${esc(g.title||'')}"></label><label>別名（カンマ区切り）<input name="aliases" value="${esc((g.aliases||[]).join(', '))}"></label><label>タグ（カンマ区切り）<input name="tags" value="${esc((g.tags||[]).join(', '))}"></label><label>作品全体の状態<select name="status">${optionHtml(groupStatuses,g.status)}</select></label><label>ネタバレなしメモ<textarea name="note" rows="4">${esc(g.note||'')}</textarea></label><label>ネタバレありメモ<textarea name="spoilerNote" rows="4">${esc(g.spoilerNote||'')}</textarea></label><button class="primary">保存</button>`; $('#groupForm').onsubmit=saveGroup; show('#groupFormView');}
-function saveGroup(e){e.preventDefault(); const f=new FormData(e.target), id=f.get('id')||uid('group'); let g=state.groups.find(x=>x.id===id); if(!g){g={id,media:[]}; state.groups.unshift(g)} Object.assign(g,{title:f.get('title'),aliases:csv(f.get('aliases')),tags:csv(f.get('tags')),status:f.get('status'),note:f.get('note'),spoilerNote:f.get('spoilerNote')}); save(); renderList(); renderDetail(id);}
-function openMediaForm(gid, mid){currentGroupId=gid; const g=state.groups.find(x=>x.id===gid), m=mid?(g.media||[]).find(x=>x.id===mid):{type:'漫画',role:'原作',status:'未読/未視聴',links:[],sources:[]}; $('#mediaForm').innerHTML=`<input name="id" type="hidden" value="${esc(m.id||'')}"><div class="form-row"><label>媒体タイプ<select name="type">${optionHtml(mediaTypes,m.type)}</select></label><label>役割<select name="role">${optionHtml(mediaRoles,m.role)}</select></label></div><label>媒体版タイトル<input name="title" value="${esc(m.title||'')}"></label><div class="form-row"><label>年<input name="year" inputmode="numeric" value="${esc(m.year||'')}"></label><label>状態<select name="status">${optionHtml(mediaStatuses,m.status)}</select></label></div><label>評価<input name="rating" placeholder="例: 4 / ★★★★" value="${esc(m.rating||'')}"></label><label>メモ<textarea name="memo" rows="3">${esc(m.memo||'')}</textarea></label><div class="subsection"><h3>見る/買うリンク（1行1件: ラベル | URL | 種別 | 最終確認日 | 状態）</h3><textarea name="links" rows="5">${esc((m.links||[]).map(l=>[l.label,l.url,l.kind,l.checkedAt,l.status].join(' | ')).join('\n'))}</textarea><p class="muted">状態: ${linkStatuses.join(' / ')}</p></div><div class="subsection"><h3>出典（1行1件: 出典名 | URL | 種別 | 最終確認日 | メモ）</h3><textarea name="sources" rows="5">${esc((m.sources||[]).map(s=>[s.name,s.url,s.kind,s.checkedAt,s.memo].join(' | ')).join('\n'))}</textarea></div><button class="primary">保存</button>`; $('#mediaForm').onsubmit=saveMedia; show('#mediaFormView');}
-function parseRows(text, keys){return text.split('\n').map(r=>r.trim()).filter(Boolean).map(r=>{const parts=r.split('|').map(p=>p.trim()); const o={id:uid(keys[0])}; keys.forEach((k,i)=>o[k]=parts[i]||''); return o;});}
-function saveMedia(e){e.preventDefault(); const f=new FormData(e.target), g=state.groups.find(x=>x.id===currentGroupId), id=f.get('id')||uid('media'); g.media ||= []; let m=g.media.find(x=>x.id===id); if(!m){m={id}; g.media.push(m)} Object.assign(m,{title:f.get('title'),type:f.get('type'),role:f.get('role'),year:f.get('year'),status:f.get('status'),rating:f.get('rating'),memo:f.get('memo'),links:parseRows(f.get('links'),['label','url','kind','checkedAt','status']),sources:parseRows(f.get('sources'),['name','url','kind','checkedAt','memo'])}); save(); renderDetail(currentGroupId);}
-function deleteGroup(id){if(confirm('作品グループを削除しますか？')){state.groups=state.groups.filter(g=>g.id!==id); save(); renderList(); show('#listView')}}
-function deleteMedia(gid,mid){if(confirm('媒体版を削除しますか？')){const g=state.groups.find(x=>x.id===gid); g.media=(g.media||[]).filter(m=>m.id!==mid); save(); renderDetail(gid)}}
-function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}), a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='media-ip-tracker.json'; a.click(); URL.revokeObjectURL(a.href); $('#dataMessage').textContent='JSONをエクスポートしました。';}
-function importJson(){try{const data=JSON.parse($('#importText').value); if(!Array.isArray(data.groups)) throw new Error('groups missing'); state=data; save(); renderList(); $('#dataMessage').textContent='JSONをインポートしました。'; show('#listView');}catch(err){$('#dataMessage').textContent='インポートできませんでした: '+err.message;}}
-async function loadSample(){const res=await fetch('sample-data.json'); state=await res.json(); save(); renderList(); $('#dataMessage').textContent='サンプルデータを読み込みました。'; show('#listView');}
-init();
+let saved = loadSaved();
+let lastResult = null;
+const $ = selector => document.querySelector(selector);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const uid = prefix => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const scriptAttr = code => esc(code);
+
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; }
+}
+function persistSaved() { localStorage.setItem(STORAGE_KEY, JSON.stringify(saved)); }
+function route(name) {
+  document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+  $(`#${name}View`)?.classList.add('active');
+  if (name === 'saved') renderSaved();
+  if (name === 'settings') $('#tmdbTokenInput').value = localStorage.getItem(TMDB_TOKEN_KEY) || '';
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function sourceLink(name, url) { return {name, url, checkedAt: new Date().toISOString().slice(0, 10)}; }
+function searchLinks(title) { return providers.map(([label, url]) => ({label, url: `${url}${encodeURIComponent(title)}`})); }
+function emptyBuckets(query) {
+  return {query, overview: [], 漫画: [], アニメ: [], ドラマ: [], 映画: [], 小説: [], similar: [], genres: new Set(), sources: []};
+}
+
+async function searchAll(query) {
+  const buckets = emptyBuckets(query);
+  $('#searchStatus').textContent = '公開データを検索しています…';
+  const tasks = [searchAniList(query), searchGoogleBooks(query), searchWikidata(query), searchTmdb(query)];
+  const settled = await Promise.allSettled(tasks);
+  settled.forEach(result => {
+    if (result.status === 'fulfilled') mergeBuckets(buckets, result.value);
+    else buckets.sources.push(sourceLink(`検索エラー: ${result.reason.message}`, '#'));
+  });
+  buckets.sources.push(...mediaOrder.slice(1, 6).flatMap(media => buckets[media]).flatMap(item => item.sources || []));
+  buckets.sources = uniqueBy(buckets.sources, item => `${item.name}-${item.url}`);
+  buckets.genres = Array.from(buckets.genres).slice(0, 16);
+  buckets.similar = uniqueBy(buckets.similar, item => `${item.title}-${item.media}`).slice(0, 12);
+  return buckets;
+}
+function mergeBuckets(target, part) {
+  ['overview', '漫画', 'アニメ', 'ドラマ', '映画', '小説', 'similar'].forEach(key => target[key].push(...(part[key] || [])));
+  (part.genres || []).forEach(genre => target.genres.add(genre));
+  target.sources.push(...(part.sources || []));
+}
+function uniqueBy(items, keyFn) { return [...new Map(items.map(item => [keyFn(item), item])).values()]; }
+
+async function searchAniList(query) {
+  const graphql = {query: `query ($search: String) { Page(page: 1, perPage: 8) { media(search: $search, type: ANIME) { id title { romaji english native } format startDate { year } genres siteUrl description(asHtml:false) recommendations(perPage:3) { nodes { mediaRecommendation { title { romaji english native } siteUrl } } } } manga: media(search: $search, type: MANGA) { id title { romaji english native } format startDate { year } genres siteUrl description(asHtml:false) recommendations(perPage:3) { nodes { mediaRecommendation { title { romaji english native } siteUrl } } } } } }`, variables: {search: query}};
+  const res = await fetch('https://graphql.anilist.co', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(graphql)});
+  if (!res.ok) throw new Error('AniList検索に失敗しました');
+  const json = await res.json();
+  const out = emptyBuckets(query);
+  const convert = (item, media) => ({id: `anilist-${item.id}`, title: pickTitle(item.title), media, year: item.startDate?.year || '', description: stripHtml(item.description || ''), genres: item.genres || [], sourceName: 'AniList', sourceUrl: item.siteUrl, links: searchLinks(pickTitle(item.title)), sources: [sourceLink('AniList', item.siteUrl)]});
+  (json.data?.Page?.media || []).forEach(item => { out.アニメ.push(convert(item, 'アニメ')); collectAniListExtras(out, item, 'アニメ'); });
+  (json.data?.Page?.manga || []).forEach(item => { out.漫画.push(convert(item, '漫画')); collectAniListExtras(out, item, '漫画'); });
+  out.sources.push(sourceLink('AniList GraphQL API', 'https://anilist.gitbook.io/anilist-apiv2-docs/'));
+  return out;
+}
+function collectAniListExtras(out, item, media) {
+  (item.genres || []).forEach(genre => out.genres.add(genre));
+  (item.recommendations?.nodes || []).forEach(node => {
+    const rec = node.mediaRecommendation;
+    if (rec) out.similar.push({title: pickTitle(rec.title), media, url: rec.siteUrl, reason: 'AniList recommendations'});
+  });
+}
+function pickTitle(title) { return title?.native || title?.english || title?.romaji || 'Untitled'; }
+function stripHtml(text) { return text.replace(/<[^>]+>/g, '').slice(0, 260); }
+
+async function searchGoogleBooks(query) {
+  const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10&printType=books&langRestrict=ja`);
+  if (!res.ok) throw new Error('Google Books検索に失敗しました');
+  const json = await res.json();
+  const out = emptyBuckets(query);
+  (json.items || []).forEach(book => {
+    const info = book.volumeInfo || {};
+    const categories = info.categories || [];
+    const media = categories.join(' ').match(/comic|manga|コミック|漫画/i) ? '漫画' : '小説';
+    const item = {id: `gbooks-${book.id}`, title: info.title || query, media, year: (info.publishedDate || '').slice(0, 4), description: (info.description || '').slice(0, 260), genres: categories, sourceName: 'Google Books', sourceUrl: info.infoLink || '#', links: searchLinks(info.title || query), sources: [sourceLink('Google Books', info.infoLink || '#')]};
+    out[media].push(item);
+    categories.forEach(category => out.genres.add(category));
+  });
+  out.sources.push(sourceLink('Google Books API', 'https://developers.google.com/books'));
+  return out;
+}
+
+async function searchWikidata(query) {
+  const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(query)}&language=ja&uselang=ja&format=json&origin=*`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Wikidata検索に失敗しました');
+  const json = await res.json();
+  const out = emptyBuckets(query);
+  out.overview = (json.search || []).slice(0, 6).map(entity => ({title: entity.label, description: entity.description || 'Wikidata候補', url: entity.concepturi, sourceName: 'Wikidata'}));
+  out.sources.push(sourceLink('Wikidata API', 'https://www.wikidata.org/w/api.php'));
+  return out;
+}
+
+async function searchTmdb(query) {
+  const token = localStorage.getItem(TMDB_TOKEN_KEY);
+  const out = emptyBuckets(query);
+  if (!token) { out.sources.push(sourceLink('TMDb未設定（映画・ドラマ検索はスキップ）', 'https://www.themoviedb.org/settings/api')); return out; }
+  const headers = {Authorization: `Bearer ${token}`, accept: 'application/json'};
+  const res = await fetch(`https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&language=ja-JP&include_adult=false`, {headers});
+  if (!res.ok) throw new Error('TMDb検索に失敗しました。Read Access Tokenを確認してください');
+  const json = await res.json();
+  (json.results || []).filter(item => item.media_type === 'movie' || item.media_type === 'tv').slice(0, 10).forEach(item => {
+    const media = item.media_type === 'movie' ? '映画' : 'ドラマ';
+    const title = item.title || item.name || query;
+    out[media].push({id: `tmdb-${item.media_type}-${item.id}`, title, media, year: (item.release_date || item.first_air_date || '').slice(0, 4), description: item.overview || '', genres: [], sourceName: 'TMDb', sourceUrl: `https://www.themoviedb.org/${item.media_type}/${item.id}`, links: searchLinks(title), sources: [sourceLink('TMDb', `https://www.themoviedb.org/${item.media_type}/${item.id}`)]});
+  });
+  out.sources.push(sourceLink('TMDb API', 'https://developer.themoviedb.org/docs'));
+  return out;
+}
+
+function renderResults(data) {
+  lastResult = data;
+  $('#resultTitle').textContent = data.query;
+  $('#resultSummary').textContent = `${countResults(data)}件の候補を媒体別に表示しています。情報は外部公開データの検索候補であり、配信中・販売中の保証ではありません。`;
+  $('#toc').innerHTML = mediaOrder.map(label => `<a href="#sec-${esc(label)}">${esc(label)}</a>`).join('');
+  $('#resultsContent').innerHTML = [overviewSection(data), ...['漫画','アニメ','ドラマ','映画','小説'].map(media => mediaSection(media, data[media], data.query)), relatedSection('類似作品', data.similar), genreSection(data), sourceSection(data)].join('');
+  $('#searchStatus').textContent = '検索が完了しました。';
+  route('results');
+}
+function countResults(data) { return ['漫画','アニメ','ドラマ','映画','小説'].reduce((sum, key) => sum + data[key].length, 0); }
+function overviewSection(data) {
+  return `<section id="sec-概要" class="panel"><h2>概要</h2><p>検索語: <strong>${esc(data.query)}</strong></p><div class="card-grid small">${data.overview.map(item => `<article class="mini-card"><h3>${esc(item.title)}</h3><p>${esc(item.description)}</p><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.sourceName)}を開く</a></article>`).join('') || '<p class="muted">Wikidataの概要候補は見つかりませんでした。</p>'}</div></section>`;
+}
+function mediaSection(media, items, query) {
+  return `<section id="sec-${media}" class="panel"><div class="section-head"><h2>${media}</h2><span class="count">${items.length}件</span></div><div class="card-grid">${items.map(itemCard).join('') || emptyMedia(media, query)}</div></section>`;
+}
+function itemCard(item) {
+  return `<article class="card"><div class="card-title"><h3>${esc(item.title)}</h3><span class="chip">${esc(item.media)}</span></div><p class="muted">${esc([item.year, item.sourceName].filter(Boolean).join(' / '))}</p><p>${esc(item.description || '説明文は取得できませんでした。')}</p><div class="chips">${(item.genres || []).slice(0, 5).map(genre => `<span class="chip">${esc(genre)}</span>`).join('')}</div><div class="button-row"><button class="primary" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(item)})`)}">候補を保存</button><a class="link-button" href="${esc(item.sourceUrl)}" target="_blank" rel="noopener">出典</a></div><details><summary>閲覧/購入検索リンク</summary><div class="search-links">${(item.links || []).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></details></article>`;
+}
+function emptyMedia(media, query) { return `<div class="empty">${esc(media)}候補は見つかりませんでした。<div class="search-links single">${searchLinks(query).slice(0, 3).map(link => `<a class="link-button" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(link.label)}</a>`).join('')}</div></div>`; }
+function relatedSection(title, items) { return `<section id="sec-${title}" class="panel"><h2>${title}</h2><div class="card-grid small">${items.map(item => `<article class="mini-card"><h3>${esc(item.title)}</h3><p>${esc(item.media)} / ${esc(item.reason)}</p><a href="${esc(item.url)}" target="_blank" rel="noopener">出典を開く</a></article>`).join('') || '<p class="muted">類似作品候補はまだありません。</p>'}</div></section>`; }
+function genreSection(data) { return `<section id="sec-同ジャンル作品" class="panel"><h2>同ジャンル作品</h2><p class="muted">ジャンル語から再検索できます。</p><div class="chips genre-links">${data.genres.map(genre => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(genre)})`)}">${esc(genre)}</button>`).join('') || '<span>ジャンル候補はありません。</span>'}</div></section>`; }
+function sourceSection(data) { return `<section id="sec-出典" class="panel"><h2>出典</h2><div class="mini-list">${data.sources.map(src => `<div class="mini-item"><a target="_blank" rel="noopener" href="${esc(src.url)}">${esc(src.name)}</a><small>${esc(src.checkedAt)}</small></div>`).join('')}</div></section>`; }
+
+function saveCandidate(item) {
+  saved.unshift({...item, savedAt: new Date().toISOString(), note: ''});
+  persistSaved();
+  alert('候補を保存しました。');
+}
+window.saveCandidate = saveCandidate;
+window.runSearch = runSearch;
+async function runSearch(query) {
+  $('#queryInput').value = query;
+  route('results');
+  renderResults(await searchAll(query));
+}
+function renderSaved() {
+  $('#savedList').innerHTML = saved.length ? saved.map((item, index) => `<article class="card"><h2>${esc(item.title)}</h2><div class="chips"><span class="chip">${esc(item.media)}</span><span class="chip">${esc(item.sourceName || '手動')}</span></div><p>${esc(item.description || item.memo || '')}</p><div class="button-row"><button onclick="renderDetail(${index})" class="primary">詳細</button><button onclick="deleteSaved(${index})" class="danger">削除</button></div></article>`).join('') : '<div class="empty panel">保存済み作品はありません。検索結果から候補を保存できます。</div>';
+}
+function renderDetail(index) {
+  const item = saved[index];
+  if (!item) return route('saved');
+  $('#detailContent').innerHTML = `<article class="panel stack"><p class="eyebrow">保存済み作品IP</p><h1 id="detailTitle">${esc(item.title)}</h1><div class="chips"><span class="chip">${esc(item.media)}</span><span class="chip">${esc(item.year || '年不明')}</span></div><p>${esc(item.description || item.memo || '')}</p><h2>検索リンク</h2><div class="search-links">${searchLinks(item.title).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div><h2>出典</h2><a href="${esc(item.sourceUrl || '#')}" target="_blank" rel="noopener">${esc(item.sourceName || '手動登録')}</a></article>`;
+  route('detail');
+}
+window.renderDetail = renderDetail;
+function deleteSaved(index) { if (confirm('削除しますか？')) { saved.splice(index, 1); persistSaved(); renderSaved(); } }
+window.deleteSaved = deleteSaved;
+
+function exportJson() {
+  const blob = new Blob([JSON.stringify({version: 2, saved}, null, 2)], {type: 'application/json'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'media-ip-tracker-v2.json';
+  link.click();
+  URL.revokeObjectURL(link.href);
+  $('#dataMessage').textContent = 'JSONをエクスポートしました。';
+}
+function importJson() {
+  try {
+    const data = JSON.parse($('#importText').value);
+    saved = Array.isArray(data) ? data : data.saved;
+    if (!Array.isArray(saved)) throw new Error('saved配列がありません');
+    persistSaved();
+    $('#dataMessage').textContent = 'JSONをインポートしました。';
+    route('saved');
+  } catch (error) { $('#dataMessage').textContent = `インポートできませんでした: ${error.message}`; }
+}
+function setup() {
+  document.querySelectorAll('[data-route]').forEach(button => button.addEventListener('click', event => { event.preventDefault(); route(button.dataset.route); }));
+  $('#searchForm').addEventListener('submit', async event => { event.preventDefault(); await runSearch($('#queryInput').value.trim()); });
+  $('#saveTokenBtn').onclick = () => { localStorage.setItem(TMDB_TOKEN_KEY, $('#tmdbTokenInput').value.trim()); $('#settingsMessage').textContent = 'TMDb Read Access Tokenを保存しました。'; };
+  $('#clearTokenBtn').onclick = () => { localStorage.removeItem(TMDB_TOKEN_KEY); $('#tmdbTokenInput').value = ''; $('#settingsMessage').textContent = 'TMDb設定を削除しました。'; };
+  $('#exportBtn').onclick = exportJson;
+  $('#importBtn').onclick = importJson;
+  $('#clearSavedBtn').onclick = () => { if (confirm('保存済み作品をすべて削除しますか？')) { saved = []; persistSaved(); $('#dataMessage').textContent = '保存済み作品を削除しました。'; } };
+  $('#manualAddBtn').onclick = () => $('#manualDialog').showModal();
+  $('#manualForm').addEventListener('submit', event => {
+    if (event.submitter?.value !== 'save') return;
+    const form = new FormData(event.target);
+    saved.unshift({id: uid('manual'), title: form.get('title'), media: form.get('media'), memo: form.get('memo'), sourceName: '手動補助登録', savedAt: new Date().toISOString()});
+    persistSaved();
+    event.target.reset();
+    renderSaved();
+  });
+}
+setup();
