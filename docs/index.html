@@ -3,69 +3,96 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Media IP Tracker</title>
+  <title>Media IP Tracker v2</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="app-header">
-    <div>
-      <p class="eyebrow">個人用 作品IP横断管理</p>
-      <h1>Media IP Tracker</h1>
-    </div>
-    <nav class="top-actions" aria-label="主要操作">
-      <button id="addGroupBtn" class="primary">作品グループ追加</button>
-      <button id="dataViewBtn">データ管理</button>
+    <a class="brand" href="#home" data-route="home" aria-label="検索トップへ">
+      <span class="brand-mark">IP</span>
+      <span><span class="eyebrow">Search-first v2</span><strong>Media IP Tracker</strong></span>
+    </a>
+    <nav class="top-actions" aria-label="画面切り替え">
+      <button data-route="home">検索</button>
+      <button data-route="saved">保存済み</button>
+      <button data-route="settings">設定/API</button>
+      <button data-route="data">データ管理</button>
     </nav>
   </header>
 
   <main>
-    <section id="listView" class="view active" aria-labelledby="listTitle">
-      <div class="section-head">
-        <div>
-          <h2 id="listTitle">検索 / 一覧</h2>
-          <p>配信中・販売中とは断定せず、確認状態を分けて記録します。</p>
-        </div>
-      </div>
-      <form id="filters" class="filters">
-        <label>タイトル検索<input id="titleSearch" type="search" placeholder="代表タイトル・別名"></label>
-        <label>タグ検索<input id="tagSearch" type="search" placeholder="SF, ミステリ"></label>
-        <label>媒体タイプ<select id="mediaFilter"></select></label>
-        <label>作品状態<select id="groupStatusFilter"></select></label>
+    <section id="homeView" class="view active hero" aria-labelledby="homeTitle">
+      <p class="eyebrow">漫画・アニメ・ドラマ・映画・小説を横断検索</p>
+      <h1 id="homeTitle">作品名から媒体別の候補を探す</h1>
+      <p class="lead">公開APIの検索結果を媒体別に整理します。配信中・販売中とは断定せず、NetflixやAmazonなどは検索リンクとして開きます。</p>
+      <form id="searchForm" class="search-box">
+        <label class="sr-only" for="queryInput">作品名</label>
+        <input id="queryInput" type="search" required placeholder="例：葬送のフリーレン / Dune / 君たちはどう生きるか" autocomplete="off">
+        <button class="primary" type="submit">検索する</button>
       </form>
-      <div id="groupList" class="card-grid"></div>
+      <div class="notice-grid">
+        <div class="panel"><h2>無料で使える検索元</h2><p>AniList、Google Books、Wikidataはキーなしで利用できます。</p></div>
+        <div class="panel"><h2>TMDbは任意</h2><p>映画・ドラマ検索を強化する場合のみ、設定画面でRead Access Tokenを保存します。</p></div>
+        <div class="panel"><h2>保存はブラウザ内</h2><p>保存済み作品とAPI設定はlocalStorageに保存されます。ログインやクラウド同期はありません。</p></div>
+      </div>
+    </section>
+
+    <section id="resultsView" class="view" aria-live="polite">
+      <div class="result-hero">
+        <p class="eyebrow">検索結果</p>
+        <h1 id="resultTitle">作品名</h1>
+        <div class="result-title-row"><p id="resultSummary" class="lead"></p><button id="resultFavoriteBtn" class="favorite-btn" type="button">☆ お気に入り</button></div>
+      </div>
+      <nav id="toc" class="toc" aria-label="検索結果の目次"></nav>
+      <div id="searchStatus" class="message" role="status"></div>
+      <div id="resultsContent" class="stack"></div>
+    </section>
+
+    <section id="savedView" class="view" aria-labelledby="savedTitle">
+      <div class="section-head"><div><p class="eyebrow">Library</p><h1 id="savedTitle">保存済み作品IP</h1></div><button id="manualAddBtn" class="primary">手動で補助登録</button></div>
+      <label class="filter-line"><input id="favoriteOnlyFilter" type="checkbox"> お気に入りのみ表示</label>
+      <div id="savedList" class="card-grid"></div>
     </section>
 
     <section id="detailView" class="view" aria-labelledby="detailTitle">
-      <button class="backBtn">← 一覧へ</button>
+      <button class="backBtn" data-route="saved">← 保存済みに戻る</button>
       <div id="detailContent"></div>
     </section>
 
-    <section id="groupFormView" class="view" aria-labelledby="groupFormTitle">
-      <button class="backBtn">← 一覧へ</button>
-      <h2 id="groupFormTitle">作品グループ編集</h2>
-      <form id="groupForm" class="editor-form"></form>
-    </section>
-
-    <section id="mediaFormView" class="view" aria-labelledby="mediaFormTitle">
-      <button class="backBtn">← 詳細へ</button>
-      <h2 id="mediaFormTitle">媒体版編集</h2>
-      <form id="mediaForm" class="editor-form"></form>
+    <section id="settingsView" class="view" aria-labelledby="settingsTitle">
+      <p class="eyebrow">Settings</p>
+      <h1 id="settingsTitle">設定 / APIキー管理</h1>
+      <div class="panel stack">
+        <p>TMDb Read Access Tokenはコードに直書きせず、このブラウザのlocalStorageに保存します。未設定でもAniList / Google Books / Wikidata検索は利用できます。</p>
+        <label>TMDb Read Access Token<input id="tmdbTokenInput" type="password" placeholder="eyJhbGciOiJIUzI1NiJ9..." autocomplete="off"></label>
+        <div class="button-row"><button id="saveTokenBtn" class="primary">保存</button><button id="clearTokenBtn">削除</button></div>
+        <p id="settingsMessage" class="message" role="status"></p>
+      </div>
     </section>
 
     <section id="dataView" class="view" aria-labelledby="dataTitle">
-      <button class="backBtn">← 一覧へ</button>
-      <h2 id="dataTitle">データ管理</h2>
+      <p class="eyebrow">Data</p>
+      <h1 id="dataTitle">データ管理</h1>
       <div class="panel stack">
-        <p>データはこのブラウザの localStorage に保存されます。外部API連携やスクレイピングは行いません。</p>
-        <div class="button-row"><button id="exportBtn" class="primary">JSONエクスポート</button><button id="loadSampleBtn">サンプルデータ読込</button></div>
-        <label>JSONインポート<textarea id="importText" rows="10" placeholder="エクスポートしたJSONを貼り付け"></textarea></label>
+        <p>作品データはこのブラウザ内に保存されます。JSONでバックアップ/復元できます。</p>
+        <div class="button-row"><button id="exportBtn" class="primary">JSONエクスポート</button><button id="clearSavedBtn" class="danger">保存済みを全削除</button></div>
+        <label>JSONインポート<textarea id="importText" rows="8" placeholder="エクスポートしたJSONを貼り付け"></textarea></label>
         <button id="importBtn">インポート</button>
         <p id="dataMessage" class="message" role="status"></p>
       </div>
     </section>
   </main>
 
-  <template id="confirmTemplate"></template>
+  <dialog id="manualDialog">
+    <form method="dialog" id="manualForm" class="editor-form">
+      <h2>手動で補助登録</h2>
+      <label>作品名<input name="title" required></label>
+      <label>媒体<select name="media"><option>漫画</option><option>アニメ</option><option>ドラマ</option><option>映画</option><option>小説</option></select></label>
+      <label>メモ<textarea name="memo" rows="4"></textarea></label>
+      <div class="button-row"><button value="cancel">キャンセル</button><button class="primary" value="save">保存</button></div>
+    </form>
+  </dialog>
+
   <script src="app.js"></script>
 </body>
 </html>
