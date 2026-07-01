@@ -1,4 +1,28 @@
 {
   "version": 2,
-  "saved": []
+  "saved": [
+    {
+      "id": "group-sample-frieren",
+      "title": "葬送のフリーレン",
+      "isFavorite": true,
+      "savedAt": "2026-07-01T00:00:00.000Z",
+      "updatedAt": "2026-07-01T00:00:00.000Z",
+      "items": [
+        {
+          "id": "sample-manga-frieren",
+          "title": "葬送のフリーレン",
+          "media": "漫画",
+          "status": "読了済み",
+          "sourceName": "手動サンプル"
+        },
+        {
+          "id": "sample-anime-frieren",
+          "title": "葬送のフリーレン",
+          "media": "アニメ",
+          "status": "視聴済み",
+          "sourceName": "手動サンプル"
+        }
+      ]
+    }
+  ]
 }

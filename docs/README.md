@@ -8,6 +8,7 @@
 - AniList / Google Books / Wikidata はAPIキーなしで検索します。
 - TMDbは任意です。映画・ドラマ検索を強化したい場合だけ、Web画面の「設定/API」でRead Access Tokenを保存します。
 - TMDbトークン、保存済み作品、インポートデータはブラウザのlocalStorageに保存します。
+- お気に入りは作品IPグループの `isFavorite`、進捗状態は媒体候補ごとの `status` として分けて保存します。
 - スクレイピング、ログイン、課金、クラウド同期、AIレコメンドは実装していません。
 - NetflixやAmazonなどは「探す」ための検索リンクであり、配信中・販売中とは断定しません。
 

@@ -41,7 +41,7 @@
       <div class="result-hero">
         <p class="eyebrow">検索結果</p>
         <h1 id="resultTitle">作品名</h1>
-        <p id="resultSummary" class="lead"></p>
+        <div class="result-title-row"><p id="resultSummary" class="lead"></p><button id="resultFavoriteBtn" class="favorite-btn" type="button">☆ お気に入り</button></div>
       </div>
       <nav id="toc" class="toc" aria-label="検索結果の目次"></nav>
       <div id="searchStatus" class="message" role="status"></div>
@@ -50,6 +50,7 @@
 
     <section id="savedView" class="view" aria-labelledby="savedTitle">
       <div class="section-head"><div><p class="eyebrow">Library</p><h1 id="savedTitle">保存済み作品IP</h1></div><button id="manualAddBtn" class="primary">手動で補助登録</button></div>
+      <label class="filter-line"><input id="favoriteOnlyFilter" type="checkbox"> お気に入りのみ表示</label>
       <div id="savedList" class="card-grid"></div>
     </section>
 
