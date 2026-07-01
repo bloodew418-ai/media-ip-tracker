@@ -1,6 +1,14 @@
 const STORAGE_KEY = 'media-ip-tracker-v2-saved';
 const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
 const mediaOrder = ['漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
+const judgementMedia = ['漫画', 'アニメ', 'ドラマ', '映画', '小説'];
+const externalConfirmProviders = [
+  ['Google', 'https://www.google.com/search?q='],
+  ['Wikipedia', 'https://ja.wikipedia.org/wiki/Special:Search?search='],
+  ['TVer', 'https://tver.jp/search/'],
+  ['U-NEXT', 'https://video.unext.jp/freeword?query='],
+  ['Prime Video', 'https://www.amazon.co.jp/s?k=']
+];
 const providers = [
   ['Netflixで探す', 'https://www.netflix.com/search?q='],
   ['Amazonで探す', 'https://www.amazon.co.jp/s?k='],
@@ -84,6 +92,7 @@ function route(name) {
 }
 function sourceLink(name, url) { return {name, url, checkedAt: new Date().toISOString().slice(0, 10)}; }
 function searchLinks(title) { return providers.map(([label, url]) => ({label, url: `${url}${encodeURIComponent(title)}`})); }
+function externalConfirmLinks(title) { return externalConfirmProviders.map(([label, url]) => ({label, url: `${url}${encodeURIComponent(title)}`})); }
 function emptyBuckets(query) {
   return {query, overview: [], 漫画: [], アニメ: [], ドラマ: [], 映画: [], 小説: [], similar: [], genres: new Set(), sources: []};
 }
@@ -109,6 +118,39 @@ function mergeBuckets(target, part) {
   target.sources.push(...(part.sources || []));
 }
 function uniqueBy(items, keyFn) { return [...new Map(items.map(item => [keyFn(item), item])).values()]; }
+function normalizedText(value) { return String(value || '').trim().toLowerCase().replace(/[\s　:：・\-_/\\]/g, ''); }
+function titleCloseness(title, query) {
+  const normalizedTitle = normalizedText(title);
+  const normalizedQuery = normalizedText(query);
+  if (!normalizedTitle || !normalizedQuery) return 0;
+  if (normalizedTitle === normalizedQuery) return 60;
+  if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) return 38;
+  return 0;
+}
+function sourcePriority(item) {
+  const source = String(item.sourceName || '').toLowerCase();
+  if ((item.media === '映画' || item.media === 'ドラマ') && (source.includes('tmdb') || source.includes('wikidata'))) return 18;
+  if ((item.media === 'アニメ' || item.media === '漫画') && source.includes('anilist')) return 18;
+  if (item.media === '小説' && source.includes('google books')) return 18;
+  return 0;
+}
+function allCandidates(data) { return judgementMedia.flatMap(media => (data[media] || []).map(item => normalizeItem(item))); }
+function candidateScore(item, query) {
+  return titleCloseness(item.title, query) + (item.year ? 10 : 0) + (item.description ? 8 : 0) + (item.sourceUrl && item.sourceUrl !== '#' ? 8 : 0) + sourcePriority(item);
+}
+function bestCandidate(data) {
+  return allCandidates(data).map(item => ({item, score: candidateScore(item, data.query)})).sort((a, b) => b.score - a.score)[0]?.item || null;
+}
+function mediaSummary(data) { return judgementMedia.map(media => ({media, count: (data[media] || []).length})); }
+function duplicateKey(item) { return [normalizedText(item.title), item.year || '不明年', item.media].join('|'); }
+function duplicateCount(item, data) {
+  const key = duplicateKey(item);
+  return allCandidates(data).filter(candidate => duplicateKey(candidate) === key).length;
+}
+function spellingSuggestions(query) {
+  const trimmed = String(query || '').trim();
+  return uniqueBy([trimmed, trimmed.toUpperCase(), trimmed.toLowerCase(), trimmed.replace(/\s+/g, ''), `${trimmed} 原作`, `${trimmed} ドラマ`, `${trimmed} 映画`, `${trimmed} 漫画`, `${trimmed} アニメ`].filter(Boolean), value => normalizedText(value)).slice(0, 6);
+}
 
 async function searchAniList(query) {
   const graphql = {query: `query ($search: String) { Page(page: 1, perPage: 8) { media(search: $search, type: ANIME) { id title { romaji english native } format startDate { year } genres siteUrl description(asHtml:false) recommendations(perPage:3) { nodes { mediaRecommendation { title { romaji english native } siteUrl } } } } manga: media(search: $search, type: MANGA) { id title { romaji english native } format startDate { year } genres siteUrl description(asHtml:false) recommendations(perPage:3) { nodes { mediaRecommendation { title { romaji english native } siteUrl } } } } } }`, variables: {search: query}};
@@ -180,23 +222,36 @@ async function searchTmdb(query) {
 function renderResults(data) {
   lastResult = data;
   currentResultGroupId = findGroupByTitle(data.query)?.id || null;
+  const total = countResults(data);
   $('#resultTitle').textContent = data.query;
-  $('#resultSummary').textContent = `検索結果は保存不要で閲覧できます。${countResults(data)}件の媒体別候補を表示しています。保存は後から任意で行えます。`;
-  $('#toc').innerHTML = mediaOrder.map(label => `<a href="#sec-${esc(label)}">${esc(label)}</a>`).join('');
-  $('#resultsContent').innerHTML = [...['漫画','アニメ','ドラマ','映画','小説'].map(media => mediaSection(media, data[media], data.query)), relatedSection('類似作品', data.similar), genreSection(data), sourceSection(data)].join('');
+  $('#resultSummary').textContent = total ? `検索結果は保存不要で閲覧できます。${total}件の候補から作品判定サマリーを作成しました。` : '候補は見つかりませんでしたが、外部確認リンクと別表記の導線を表示しています。';
+  $('#toc').innerHTML = ['作品判定サマリー', ...mediaOrder].map(label => `<a href="#sec-${esc(label)}">${esc(label)}</a>`).join('');
+  $('#resultsContent').innerHTML = [judgementSummarySection(data), ...judgementMedia.map(media => mediaSection(media, data[media], data.query, data)), relatedSection('類似作品', data.similar), genreSection(data), sourceSection(data)].join('');
   renderResultFavorite();
   $('#searchStatus').textContent = '検索が完了しました。';
   route('results');
 }
-function countResults(data) { return ['漫画','アニメ','ドラマ','映画','小説'].reduce((sum, key) => sum + data[key].length, 0); }
-function mediaSection(media, items, query) {
-  return `<section id="sec-${media}" class="panel"><div class="section-head"><h2>${media}</h2><span class="count">${items.length}件</span></div><div class="card-grid">${items.map(itemCard).join('') || emptyMedia(media, query)}</div></section>`;
+function countResults(data) { return judgementMedia.reduce((sum, key) => sum + data[key].length, 0); }
+function judgementSummarySection(data) {
+  const total = countResults(data);
+  const best = bestCandidate(data);
+  const found = mediaSummary(data).filter(item => item.count).map(item => item.media).join('、') || '候補なし';
+  const missing = mediaSummary(data).filter(item => !item.count).map(item => item.media).join('、') || 'なし';
+  const savedGroup = currentResultGroupId ? saved.find(group => group.id === currentResultGroupId) : findGroupByTitle(data.query);
+  return `<section id="sec-作品判定サマリー" class="panel judgement-summary"><div class="section-head"><div><p class="eyebrow">作品判定サマリー</p><h2>${esc(data.query)}</h2></div><span class="count">候補 ${total}件</span></div><div class="summary-grid"><div><strong>検索キーワード</strong><p>${esc(data.query)}</p></div><div><strong>最有力候補</strong><p>${best ? esc([best.title, best.media, best.year, best.sourceName].filter(Boolean).join(' / ')) : '候補なし'}</p></div><div><strong>見つかった媒体</strong><p>${esc(found)}</p></div><div><strong>未確認媒体</strong><p>${esc(missing)}</p></div><div><strong>候補数</strong><p>${total}件</p></div><div><strong>検索元</strong><p>${esc(data.sources.map(src => src.name).filter(Boolean).slice(0, 5).join(' / ') || '公開データ')}</p></div><div><strong>保存状態</strong><p>${savedGroup ? `保存済み（${savedGroup.items.length}件）` : '未保存（保存なしで閲覧中）'}</p></div></div>${mediaExpansionHtml(data)}${best ? bestCandidateHtml(best) : zeroResultHtml(data.query)}</section>`;
 }
-function itemCard(item) {
+function bestCandidateHtml(item) { return `<div class="best-candidate"><p class="eyebrow">最有力候補</p><h3>${esc(item.title)}</h3><p class="muted">${esc([item.media, item.year, item.sourceName].filter(Boolean).join(' / '))}</p><p>${esc(item.description || '概要は取得できませんでした。外部リンクで確認してください。')}</p><div class="button-row"><a class="link-button primary" href="${esc(item.sourceUrl || '#')}" target="_blank" rel="noopener">出典で確認</a>${externalConfirmLinks(item.title).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></div>`; }
+function mediaExpansionHtml(data) { return `<div class="media-expansion" aria-label="媒体展開まとめ">${mediaSummary(data).map(item => `<div class="media-pill ${item.count ? 'found' : ''}"><strong>${esc(item.media)}</strong><span>${item.count ? `候補あり ${item.count}件` : '候補なし'}</span></div>`).join('')}</div>`; }
+function zeroResultHtml(query) { return `<div class="zero-guidance"><h3>候補なし</h3><p>まず外部で確認するか、別表記で探してください。必要な場合だけ手動保存できます。</p><h4>表記ゆれ候補</h4><div class="chips genre-links">${spellingSuggestions(query).map(value => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(value)})`)}">${esc(value)}</button>`).join('')}</div><h4>外部確認リンク</h4><div class="search-links">${externalConfirmLinks(query).map(link => `<a class="link-button primary" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div><button class="save-button subtle" type="button" onclick="document.querySelector('#manualDialog').showModal()">必要なら手動で補助保存</button></div>`; }
+function mediaSection(media, items, query, data) {
+  return `<section id="sec-${media}" class="panel"><div class="section-head"><h2>${media}</h2><span class="count">${items.length}件</span></div><div class="card-grid">${items.map(item => itemCard(item, data)).join('') || emptyMedia(media, query)}</div></section>`;
+}
+function itemCard(item, data) {
   const normalized = normalizeItem(item);
-  return `<article class="card"><div class="card-title"><h3>${esc(normalized.title)}</h3><span class="chip">${esc(normalized.media)}</span></div><p class="muted">${esc([normalized.year, normalized.sourceName].filter(Boolean).join(' / '))}</p>${savedStatusHtml(normalized)}<p>${esc(normalized.description || '説明文は取得できませんでした。')}</p><div class="chips">${(normalized.genres || []).slice(0, 5).map(genre => `<span class="chip">${esc(genre)}</span>`).join('')}</div><div class="button-row"><button class="save-button" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalized)})`)}">この作品を保存</button><a class="link-button" href="${esc(normalized.sourceUrl)}" target="_blank" rel="noopener">出典リンク</a></div><details open><summary>探すリンク</summary><div class="search-links">${(normalized.links || []).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></details></article>`;
+  const dupes = data ? duplicateCount(normalized, data) : 1;
+  return `<article class="card"><div class="card-title"><h3>${esc(normalized.title)}</h3><span class="chip">${esc(normalized.media)}</span></div>${dupes > 1 ? `<p class="duplicate-note">類似候補 ${dupes}件（同じタイトル・年・媒体）</p>` : ''}<dl class="candidate-meta"><div><dt>媒体種別</dt><dd>${esc(normalized.media)}</dd></div><div><dt>年</dt><dd>${esc(normalized.year || '不明')}</dd></div><div><dt>出典元</dt><dd>${esc(normalized.sourceName || '不明')}</dd></div></dl><p>${esc(normalized.description || '説明文は取得できませんでした。')}</p><div class="chips">${(normalized.genres || []).slice(0, 5).map(genre => `<span class="chip">${esc(genre)}</span>`).join('')}</div><div class="button-row"><a class="link-button primary" href="${esc(normalized.sourceUrl || '#')}" target="_blank" rel="noopener">出典リンク</a></div><details open><summary>探すリンク</summary><div class="search-links">${(normalized.links || []).map(link => `<a class="link-button" href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`).join('')}</div></details><div class="save-area"><button class="save-button" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalized)})`)}">候補を保存</button>${savedStatusHtml(normalized)}</div></article>`;
 }
-function emptyMedia(media, query) { return `<div class="empty"><strong>候補なし</strong><br>${esc(media)}の検索候補は見つかりませんでした。<div class="search-links single">${searchLinks(query).slice(0, 3).map(link => `<a class="link-button" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(link.label)}</a>`).join('')}</div></div>`; }
+function emptyMedia(media, query) { return `<div class="empty"><strong>候補なし</strong><br>${esc(media)}の検索候補は見つかりませんでした。<div class="search-links single">${externalConfirmLinks(query).slice(0, 3).map(link => `<a class="link-button" target="_blank" rel="noopener" href="${esc(link.url)}">${esc(link.label)}</a>`).join('')}</div></div>`; }
 function relatedSection(title, items) { return `<section id="sec-${title}" class="panel"><h2>${title}</h2><div class="card-grid small">${items.map(item => `<article class="mini-card"><h3>${esc(item.title)}</h3><p>${esc(item.media)} / ${esc(item.reason)}</p><a href="${esc(item.url)}" target="_blank" rel="noopener">出典を開く</a></article>`).join('') || '<p class="muted">類似作品候補はまだありません。</p>'}</div></section>`; }
 function genreSection(data) { return `<section id="sec-同ジャンル作品" class="panel"><h2>同ジャンル作品</h2><p class="muted">ジャンル語から再検索できます。</p><div class="chips genre-links">${data.genres.map(genre => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(genre)})`)}">${esc(genre)}</button>`).join('') || '<span>ジャンル候補はありません。</span>'}</div></section>`; }
 function sourceSection(data) { return `<section id="sec-出典" class="panel"><h2>出典</h2><div class="mini-list">${data.sources.map(src => `<div class="mini-item"><a target="_blank" rel="noopener" href="${esc(src.url)}">${esc(src.name)}</a><small>${esc(src.checkedAt)}</small></div>`).join('')}</div></section>`; }
