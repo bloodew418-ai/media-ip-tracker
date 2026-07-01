@@ -13,6 +13,7 @@
       <h1>Media IP Tracker</h1>
     </div>
     <nav class="top-actions" aria-label="主要操作">
+      <button id="autoSearchBtn">自動検索</button>
       <button id="addGroupBtn" class="primary">作品グループ追加</button>
       <button id="dataViewBtn">データ管理</button>
     </nav>
@@ -33,6 +34,23 @@
         <label>作品状態<select id="groupStatusFilter"></select></label>
       </form>
       <div id="groupList" class="card-grid"></div>
+    </section>
+
+    <section id="autoSearchView" class="view" aria-labelledby="autoSearchTitle">
+      <button class="backBtn">← 一覧へ</button>
+      <div class="section-head">
+        <div>
+          <h2 id="autoSearchTitle">公開データ自動検索</h2>
+          <p>Google Books、AniList、Wikidataの公開APIから候補を探します。APIキーが必要なサービスやスクレイピングは使いません。</p>
+        </div>
+      </div>
+      <form id="autoSearchForm" class="filters auto-search-form">
+        <label>検索キーワード<input id="autoSearchQuery" type="search" placeholder="作品名を入力" required></label>
+        <button id="autoSearchSubmit" class="primary" type="submit">検索</button>
+      </form>
+      <div id="autoSearchStatus" class="message" role="status"></div>
+      <div id="autoSearchErrors" class="stack"></div>
+      <div id="autoSearchResults" class="search-result-grid"></div>
     </section>
 
     <section id="detailView" class="view" aria-labelledby="detailTitle">

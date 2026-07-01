@@ -2,6 +2,7 @@
 
 ## 0.1.0 - 2026-07-01
 
+- 公開データ自動検索モードを追加し、Google Books / AniList / Wikidata の候補から作品グループまたは媒体版へ取り込めるようにした。
 - GitHub Pagesの公開URLを実際のURLに更新。
 - GitHub Pagesの想定公開URL、設定手順、公開後の確認項目をREADMEに追記。
 - GitHub Pages向けの静的Webアプリ初期版を追加。
