@@ -2,6 +2,13 @@
 
 `/docs` は GitHub Pages で公開する静的Webアプリ本体です。
 
+## 公開URL
+
+この作業環境では Git remote が未設定で、GitHubユーザー名を確定できませんでした。リポジトリ名は `media-ip-tracker` です。
+
+- 想定URL: `https://<GitHubユーザー名>.github.io/media-ip-tracker/`
+- GitHub Pages が有効化済みの場合は、GitHub の Settings > Pages に表示される公開URLを正とします。
+
 ## 方針
 
 - HTML/CSS/JavaScript のみで実装しています。
