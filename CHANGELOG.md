@@ -2,6 +2,7 @@
 
 ## 0.1.0 - 2026-07-01
 
+- GitHub Pagesの公開URLを実際のURLに更新。
 - GitHub Pagesの想定公開URL、設定手順、公開後の確認項目をREADMEに追記。
 - GitHub Pages向けの静的Webアプリ初期版を追加。
 - 作品グループ、媒体版、リンク、出典のlocalStorage管理を追加。
