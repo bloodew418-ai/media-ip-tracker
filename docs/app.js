@@ -418,7 +418,7 @@ function renderHomeSavedPreview() {
   target.innerHTML = recent.length ? recent.map(group => {
     const index = saved.findIndex(savedGroup => savedGroup.id === group.id);
     return `<div class="mini-item"><span><strong>${esc(group.title)}</strong><br><small>${group.items.length}件の媒体候補 / ${group.isFavorite ? 'お気に入り' : '通常'}</small></span><button onclick="renderDetail(${index})">開く</button></div>`;
-  }).join('') : '<div class="empty">保存済み作品はまだありません。まず作品名を検索してください。</div>';
+  }).join('') : '<div class="empty">まだ保存済み作品はありません。</div>';
 }
 
 function renderSaved() {
@@ -482,7 +482,8 @@ function setup() {
   $('#favoriteOnlyFilter').onchange = renderSaved;
   $('#resultFavoriteBtn').onclick = toggleResultFavorite;
   $('#manualAddBtn').onclick = () => $('#manualDialog').showModal();
-  $('#homeManualAddBtn').onclick = () => $('#manualDialog').showModal();
+  const homeManualAddBtn = $('#homeManualAddBtn');
+  if (homeManualAddBtn) homeManualAddBtn.onclick = () => $('#manualDialog').showModal();
   renderHomeSavedPreview();
   $('#manualForm').addEventListener('submit', event => {
     if (event.submitter?.value !== 'save') return;

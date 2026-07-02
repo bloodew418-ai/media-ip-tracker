@@ -10,13 +10,12 @@
   <header class="app-header">
     <a class="brand" href="#home" data-route="home" aria-label="検索トップへ">
       <span class="brand-mark">IP</span>
-      <span><span class="eyebrow">Search-first v2</span><strong>Media IP Tracker</strong></span>
+      <span><strong>Media IP Tracker</strong></span>
     </a>
     <nav class="top-actions" aria-label="画面切り替え">
       <button data-route="home" title="検索" aria-label="検索">検索</button>
-      <button data-route="saved" title="保存済み" aria-label="保存済み">保存</button>
-      <button data-route="settings" title="設定/API" aria-label="設定/API">設定</button>
-      <button data-route="data" title="データ管理" aria-label="データ管理">管理</button>
+      <button data-route="saved" title="保存済み / お気に入り" aria-label="保存済み / お気に入り">お気に入り</button>
+      <button data-route="settings" title="設定/API・データ管理" aria-label="設定/API・データ管理">設定</button>
     </nav>
   </header>
 
@@ -24,23 +23,13 @@
     <section id="homeView" class="view active hero" aria-labelledby="homeTitle">
       <p class="eyebrow">漫画・アニメ・ドラマ・映画・小説を横断検索</p>
       <h1 id="homeTitle">作品名から媒体別の候補を探す</h1>
-      <p class="lead">作品名から媒体別候補と日本向け確認リンクを表示します。保存は任意です。</p>
-      <form id="searchForm" class="search-box" aria-describedby="homeSearchHint">
+      <form id="searchForm" class="search-box" aria-describedby="homeTitle">
         <label class="sr-only" for="queryInput">作品名</label>
-        <input id="queryInput" type="search" required placeholder="例：葬送のフリーレン / Dune / 君たちはどう生きるか" autocomplete="off">
-        <button class="primary search-submit" type="submit">検索する</button>
+        <input id="queryInput" type="search" required placeholder="作品名を入力" autocomplete="off">
+        <button class="primary search-submit" type="submit" title="検索する" aria-label="検索する">検索</button>
       </form>
-      <p id="homeSearchHint" class="search-hint">保存は任意です。まず作品候補と日本向け確認リンクを確認してください。</p>
-      <details class="secondary-tools">
-        <summary title="検索で見つからない場合・データ管理" aria-label="検索で見つからない場合・データ管理">補助</summary>
-        <div class="notice-grid compact">
-          <div class="panel"><h2>無料で使える検索元</h2><p>AniList、Google Books、Wikidataはキーなしで利用できます。</p></div>
-          <div class="panel"><h2>TMDbは任意</h2><p>映画・ドラマ検索を強化する場合のみ、設定画面でRead Access Tokenを保存します。</p></div>
-          <div class="panel"><h2>補助操作</h2><p><button id="homeManualAddBtn" type="button" title="手動で補助保存" aria-label="手動で補助保存">補助保存</button> <button data-route="data" type="button" title="データ管理" aria-label="データ管理">管理</button></p></div>
-        </div>
-      </details>
       <section class="saved-preview" aria-labelledby="homeSavedTitle">
-        <div class="section-head compact-head"><div><p class="eyebrow">Saved</p><h2 id="homeSavedTitle">最近保存した作品</h2></div><button data-route="saved" type="button" title="保存済みを開く" aria-label="保存済みを開く">保存を開く</button></div>
+        <div class="section-head compact-head"><div><h2 id="homeSavedTitle">最近保存した作品</h2></div><button data-route="saved" type="button" title="保存済みを開く" aria-label="保存済みを開く">保存済み</button></div>
         <div id="homeSavedPreview" class="mini-list"></div>
       </section>
     </section>
@@ -69,25 +58,23 @@
 
     <section id="settingsView" class="view" aria-labelledby="settingsTitle">
       <p class="eyebrow">Settings</p>
-      <h1 id="settingsTitle">設定 / APIキー管理</h1>
+      <h1 id="settingsTitle">設定</h1>
       <div class="panel stack">
-        <p>TMDb Read Access Tokenはコードに直書きせず、このブラウザのlocalStorageに保存します。未設定でもAniList / Google Books / Wikidata検索は利用できます。</p>
+        <p>TMDbは任意です。未設定でも基本検索は使えます。</p>
         <label>TMDb Read Access Token<input id="tmdbTokenInput" type="password" placeholder="eyJhbGciOiJIUzI1NiJ9..." autocomplete="off"></label>
         <div class="button-row"><button id="saveTokenBtn" class="primary">保存</button><button id="clearTokenBtn">削除</button></div>
         <p id="settingsMessage" class="message" role="status"></p>
       </div>
-    </section>
-
-    <section id="dataView" class="view" aria-labelledby="dataTitle">
-      <p class="eyebrow">Data</p>
-      <h1 id="dataTitle">データ管理</h1>
-      <div class="panel stack">
-        <p>作品データはこのブラウザ内に保存されます。JSONでバックアップ/復元できます。</p>
-        <div class="button-row"><button id="exportBtn" class="primary" title="JSONエクスポート" aria-label="JSONエクスポート">エクスポート</button><button id="clearSavedBtn" class="danger" title="保存済みを全削除" aria-label="保存済みを全削除">全削除</button></div>
-        <label>JSONインポート<textarea id="importText" rows="8" placeholder="エクスポートしたJSONを貼り付け"></textarea></label>
-        <button id="importBtn">インポート</button>
-        <p id="dataMessage" class="message" role="status"></p>
-      </div>
+      <details class="secondary-tools data-tools">
+        <summary title="データ管理" aria-label="データ管理">データ管理</summary>
+        <div class="panel stack">
+          <p>JSONでバックアップ/復元できます。</p>
+          <div class="button-row"><button id="exportBtn" class="primary" title="JSONエクスポート" aria-label="JSONエクスポート">エクスポート</button><button id="clearSavedBtn" class="danger" title="保存済みを全削除" aria-label="保存済みを全削除">全削除</button></div>
+          <label>JSONインポート<textarea id="importText" rows="8" placeholder="エクスポートしたJSONを貼り付け"></textarea></label>
+          <button id="importBtn">インポート</button>
+          <p id="dataMessage" class="message" role="status"></p>
+        </div>
+      </details>
     </section>
   </main>
 
