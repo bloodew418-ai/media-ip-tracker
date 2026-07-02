@@ -315,7 +315,7 @@ function renderResults(data) {
   currentResultGroupId = findGroupByTitle(data.query)?.id || null;
   const total = countResults(data);
   $('#resultTitle').textContent = data.query;
-  $('#resultSummary').textContent = total ? `検索結果は保存不要で閲覧できます。${total}件の候補から作品判定サマリーを作成しました。` : '候補は見つかりませんでしたが、外部確認リンクと別表記の導線を表示しています。';
+  $('#resultSummary').textContent = total ? `保存不要で閲覧可。候補 ${total}件。` : '候補なし。別表記と確認リンクを表示。';
   const visibleMedia = judgementMedia.filter(media => (data[media] || []).length);
   const tocItems = ['作品判定サマリー', ...visibleMedia, '類似作品', '同ジャンル作品', '出典'];
   $('#toc').className = `toc ${countClass('toc-links', tocItems.length)}`;
@@ -336,9 +336,9 @@ function judgementSummarySection(data) {
   const savedGroup = currentResultGroupId ? saved.find(group => group.id === currentResultGroupId) : findGroupByTitle(data.query);
   return `<section id="sec-作品判定サマリー" class="panel judgement-summary summary-card"><div class="section-head"><div><p class="eyebrow">作品判定サマリー</p><h2>${esc(data.query)}</h2></div><span class="count">候補 ${total}件</span></div><div class="summary-grid"><div><strong>検索キーワード</strong><p>${esc(data.query)}</p></div><div><strong>最有力候補</strong><p>${best ? esc([best.title, best.media, best.year, best.sourceName].filter(Boolean).join(' / ')) : '候補なし'}</p></div><div><strong>見つかった媒体</strong><p class="summary-chips">${found}</p></div><div><strong>未確認媒体</strong><p class="summary-chips muted-chips">${missing}</p></div><div><strong>候補数</strong><p>${total}件</p></div><div><strong>保存状態</strong><p>${savedGroup ? `保存済み（${savedGroup.items.length}件）` : '未保存（保存なしで閲覧中）'}</p></div></div>${sourceDetailsSummaryHtml(data)}${mediaExpansionHtml(data)}${best ? bestCandidateHtml(best) : zeroResultHtml(data.query)}</section>`;
 }
-function bestCandidateHtml(item) { return `<div class="best-candidate"><p class="eyebrow">最有力候補</p><h3>${esc(item.title)}</h3><p class="muted">断定ではなく、タイトル一致度・年・概要・出典の情報量から優先表示しています。</p><dl class="candidate-meta"><div><dt>媒体種別</dt><dd>${esc(item.media)}</dd></div><div><dt>年</dt><dd>${esc(item.year || '不明')}</dd></div><div><dt>出典元</dt><dd>${esc(item.sourceName || '不明')}</dd></div></dl>${genreChipsHtml(item.genres)}${descriptionHtml(item, 150)}${confirmLinksHtml(item.title, item.media, true, true)}${sourceDetailsHtml(item)}<div class="save-area"><button class="save-button" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalizeItem(item))})`)}" title="最有力候補を保存" aria-label="最有力候補を保存">保存</button>${savedStatusHtml(normalizeItem(item))}</div></div>`; }
+function bestCandidateHtml(item) { return `<div class="best-candidate"><p class="eyebrow">最有力候補</p><h3>${esc(item.title)}</h3><p class="muted">断定ではなく、タイトル一致度・年・概要・出典の情報量から優先表示しています。</p><dl class="candidate-meta"><div><dt>媒体種別</dt><dd>${esc(item.media)}</dd></div><div><dt>年</dt><dd>${esc(item.year || '不明')}</dd></div><div><dt>出典元</dt><dd>${esc(item.sourceName || '不明')}</dd></div></dl>${genreChipsHtml(item.genres)}${descriptionHtml(item, 100)}${confirmLinksHtml(item.title, item.media, true, true)}${sourceDetailsHtml(item)}<div class="save-area"><button class="save-button" onclick="${scriptAttr(`saveCandidate(${JSON.stringify(normalizeItem(item))})`)}" title="最有力候補を保存" aria-label="最有力候補を保存">保存</button>${savedStatusHtml(normalizeItem(item))}</div></div>`; }
 function mediaExpansionHtml(data) { return `<div class="media-expansion" aria-label="媒体展開まとめ">${mediaSummary(data).map(item => `<div class="media-pill ${item.count ? 'found' : ''}"><strong>${esc(item.media)}</strong><span>${item.count ? `候補あり ${item.count}件` : '候補なし'}</span></div>`).join('')}</div>`; }
-function zeroResultHtml(query) { return `<div class="zero-guidance"><h3>候補が見つかりませんでした</h3><p>失敗ではありません。別表記や日本向け確認リンクで探せます。</p><h4>別表記検索</h4><div class="chips genre-links">${spellingSuggestions(query).map(value => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(value)})`)}">${esc(value)}</button>`).join('')}</div><h4>日本向け確認リンク</h4>${confirmLinksHtml(query)}<button class="save-button subtle" type="button" onclick="document.querySelector('#manualDialog').showModal()">必要なら手動で補助保存</button></div>`; }
+function zeroResultHtml(query) { return `<div class="zero-guidance"><h3>候補なし</h3><p>別表記や日本向け確認リンクで確認できます。</p><h4>別表記</h4><div class="chips genre-links">${spellingSuggestions(query).map(value => `<button onclick="${scriptAttr(`runSearch(${JSON.stringify(value)})`)}">${esc(value)}</button>`).join('')}</div><h4>日本向け確認リンク</h4>${confirmLinksHtml(query)}<button class="save-button subtle" type="button" onclick="document.querySelector('#manualDialog').showModal()" title="必要なら手動で補助保存" aria-label="必要なら手動で補助保存">補助保存</button></div>`; }
 function mediaSection(media, items, query, data) {
   const bestKey = bestCandidate(data) ? duplicateKey(bestCandidate(data)) : '';
   const normalItems = items.filter(item => duplicateKey(item) !== bestKey);
@@ -390,7 +390,7 @@ function renderResultFavorite() {
   const button = $('#resultFavoriteBtn');
   if (!button || !lastResult) return;
   const group = currentResultGroupId ? saved.find(savedGroup => savedGroup.id === currentResultGroupId) : findGroupByTitle(lastResult.query);
-  button.textContent = group?.isFavorite ? '★ 作品をお気に入り' : '☆ 作品をお気に入り';
+  button.textContent = group?.isFavorite ? '★ お気に入り' : '☆ お気に入り';
   button.classList.toggle('active', Boolean(group?.isFavorite));
 }
 function toggleResultFavorite() {
