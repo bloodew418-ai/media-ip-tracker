@@ -251,10 +251,11 @@ function classifyCandidate(item, query) {
   const exact = normalizedText(item.title) === nq;
   const aliasExact = aliases.some(alias => normalizedText(alias) === nq);
   const close = aliases.some(alias => titleCloseness(alias, query) >= 38) || titleCloseness(item.title, query) >= 38;
+  const fuzzy = [item.title, ...aliases].some(value => normalizedSimilarity(value, query) >= 0.62);
   if (exact) return 'exactCandidate';
   if (aliasExact) return 'aliasCandidate';
   if (close && !(isProbablyJapanese(query) && source.includes('anilist') && !aliasExact)) return 'strongCandidate';
-  if (close || aliases.some(alias => normalizedText(alias).includes(nq) || nq.includes(normalizedText(alias)))) return 'fuzzyCandidate';
+  if (close || fuzzy) return 'fuzzyCandidate';
   return 'relatedCandidate';
 }
 function mainCandidates(data) { return allCandidates(data).filter(item => ['exactCandidate', 'aliasCandidate', 'strongCandidate'].includes(item.confidence || classifyCandidate(item, data.query))); }
@@ -304,8 +305,25 @@ function titleCloseness(title, query) {
   const normalizedQuery = normalizedText(query);
   if (!normalizedTitle || !normalizedQuery) return 0;
   if (normalizedTitle === normalizedQuery) return 60;
-  if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) return 38;
+  if ((normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) && containmentRatio(normalizedTitle, normalizedQuery) >= 0.75) return 38;
   return 0;
+}
+function containmentRatio(a, b) { return Math.min(a.length, b.length) / Math.max(a.length, b.length); }
+function editDistance(a, b) {
+  const dp = Array.from({length: a.length + 1}, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1;
+    }
+  }
+  return dp[a.length][b.length];
+}
+function normalizedSimilarity(a, b) {
+  const left = normalizedText(a);
+  const right = normalizedText(b);
+  if (!left || !right) return 0;
+  return 1 - editDistance(left, right) / Math.max(left.length, right.length);
 }
 function sourcePriority(item) {
   const source = String(item.sourceName || '').toLowerCase();
