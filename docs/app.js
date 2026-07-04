@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'media-ip-tracker-v2-saved';
 const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
+const SEARCH_DEBUG_KEY = 'media-ip-tracker-v2-search-debug';
 const mediaOrder = ['漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
 const visibleCandidateLimit = 3;
 const visibleSimilarLimit = 5;
@@ -150,10 +151,19 @@ function route(name) {
   $(`#${name}View`)?.classList.add('active');
   if (name === 'home') renderHomeSavedPreview();
   if (name === 'saved') renderSaved();
-  if (name === 'settings') $('#tmdbTokenInput').value = localStorage.getItem(TMDB_TOKEN_KEY) || '';
+  if (name === 'settings') {
+    $('#tmdbTokenInput').value = localStorage.getItem(TMDB_TOKEN_KEY) || '';
+    syncSearchDebugToggle();
+  }
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
 function sourceLink(name, url) { return {name, url, checkedAt: new Date().toISOString().slice(0, 10)}; }
+function isSearchDebugEnabled() { return localStorage.getItem(SEARCH_DEBUG_KEY) === '1'; }
+function setSearchDebugEnabled(enabled) { localStorage.setItem(SEARCH_DEBUG_KEY, enabled ? '1' : '0'); }
+function syncSearchDebugToggle() {
+  const toggle = $('#searchDebugInput');
+  if (toggle) toggle.checked = isSearchDebugEnabled();
+}
 
 function shortActionLabel(label) { return shortActionLabels[label] || String(label || '').replace(/で(確認|探す)$/, '').replace(/を探す$/, ''); }
 function countClass(prefix, count) { return `${prefix} ${prefix}-count-${Math.min(count, 9)} links-count-${Math.min(count, 9)}`; }
@@ -183,24 +193,40 @@ function emptyBuckets(query) {
 }
 
 async function searchAll(query) {
+  const rawQuery = query;
   const normalizedQuery = normalizeSearchInput(query);
   const buckets = emptyBuckets(normalizedQuery);
+  buckets.searchDebug = createSearchDebug(rawQuery, normalizedQuery);
   $('#searchStatus').textContent = '公開データを段階検索しています…';
   const initialTerms = buildSearchVariants(normalizedQuery);
+  buckets.searchDebug.buildSearchVariants = initialTerms;
+  buckets.searchDebug.initialApiSearchTerms = initialTerms;
   await runSearchStage(buckets, initialTerms, normalizedQuery);
   runDiscoveryStage(buckets, normalizedQuery);
   const trustedTerms = trustedDiscoveryTerms(buckets, normalizedQuery).filter(term => !initialTerms.some(seed => normalizedText(seed) === normalizedText(term)));
+  buckets.searchDebug.trustedResearchTerms = trustedTerms;
   if (trustedTerms.length) await runSearchStage(buckets, trustedTerms, normalizedQuery);
   runDiscoveryStage(buckets, normalizedQuery);
   finalizeSearchBuckets(buckets);
+  updateSearchDebug(buckets);
   return buckets;
 }
 async function runSearchStage(buckets, terms, query) {
-  const tasks = [searchAniList(terms, query), searchGoogleBooks(terms, query), searchWikidata(terms, query), searchTmdb(terms, query)];
-  const settled = await Promise.allSettled(tasks);
-  settled.forEach(result => {
+  const tasks = [
+    ['AniList', searchAniList(terms, query)],
+    ['Google Books', searchGoogleBooks(terms, query)],
+    ['Wikidata', searchWikidata(terms, query)],
+    ['TMDb', searchTmdb(terms, query)]
+  ];
+  const settled = await Promise.allSettled(tasks.map(([, task]) => task));
+  settled.forEach((result, index) => {
+    const sourceName = tasks[index][0];
     if (result.status === 'fulfilled') mergeBuckets(buckets, result.value);
-    else buckets.sources.push(sourceLink(`検索エラー: ${result.reason.message}`, '#'));
+    else {
+      const message = result.reason?.message || String(result.reason);
+      buckets.searchDebug?.sourceErrors.push({sourceName, message});
+      buckets.sources.push(sourceLink(`検索エラー: ${message}`, '#'));
+    }
   });
 }
 function finalizeSearchBuckets(buckets) {
@@ -212,6 +238,78 @@ function finalizeSearchBuckets(buckets) {
   buckets.sources = uniqueBy(buckets.sources, item => `${item.name}-${item.url}`);
   buckets.genres = Array.from(buckets.genres).slice(0, 16);
   buckets.similar = uniqueBy(buckets.similar, item => `${normalizedText(item.title)}-${item.media}`).filter(item => !candidateKeys.has(duplicateKey(item))).slice(0, 20);
+}
+
+
+function createSearchDebug(rawQuery, normalizedQuery) {
+  return {
+    rawQuery,
+    normalizedQuery,
+    buildSearchVariants: [],
+    initialApiSearchTerms: [],
+    trustedResearchTerms: [],
+    sourceCounts: {'Google Books': 0, Wikidata: 0, AniList: 0, TMDb: 0},
+    sourceErrors: [],
+    discoveryRecords: [],
+    classifications: {exactCandidate: [], aliasCandidate: [], strongCandidate: [], fuzzyCandidate: [], relatedCandidate: []},
+    mergedCandidates: [],
+    bestCandidate: null,
+    didYouMean: [],
+    similar: []
+  };
+}
+function updateSearchDebug(buckets) {
+  if (!buckets.searchDebug) return;
+  const best = bestCandidate(buckets);
+  const bestKey = best ? duplicateKey(best) : '';
+  buckets.searchDebug.sourceCounts = sourceCounts(buckets);
+  buckets.searchDebug.discoveryRecords = buckets.discovery.map(item => debugCandidate(item, buckets, bestKey));
+  buckets.searchDebug.classifications = ['exactCandidate', 'aliasCandidate', 'strongCandidate', 'fuzzyCandidate', 'relatedCandidate'].reduce((groups, key) => ({...groups, [key]: (buckets[key] || []).map(item => debugCandidate(item, buckets, bestKey))}), {});
+  buckets.searchDebug.mergedCandidates = allCandidates(buckets).map(item => debugCandidate(item, buckets, bestKey));
+  buckets.searchDebug.bestCandidate = best ? debugCandidate(best, buckets, bestKey) : null;
+  buckets.searchDebug.didYouMean = fuzzyCandidates(buckets).map(item => debugCandidate(item, buckets, bestKey));
+  buckets.searchDebug.similar = (buckets.similar || []).map(item => debugCandidate(item, buckets, bestKey));
+}
+function sourceCounts(buckets) {
+  return allCandidates(buckets).reduce((counts, item) => {
+    const source = sourceCountName(item.sourceName);
+    counts[source] = (counts[source] || 0) + 1;
+    return counts;
+  }, {'Google Books': 0, Wikidata: (buckets.overview || []).filter(item => sourceCountName(item.sourceName) === 'Wikidata').length, AniList: 0, TMDb: 0});
+}
+function sourceCountName(sourceName) {
+  const source = String(sourceName || '');
+  if (source.includes('Google Books')) return 'Google Books';
+  if (source.includes('Wikidata')) return 'Wikidata';
+  if (source.includes('AniList')) return 'AniList';
+  if (source.includes('TMDb')) return 'TMDb';
+  return source || '不明';
+}
+function debugCandidate(item, buckets, bestKey) {
+  const matchLevel = item.confidence || classifyCandidate(item, buckets.query);
+  const bestTarget = duplicateKey(item) === bestKey;
+  return {
+    title: item.title || '',
+    sourceName: item.sourceName || '',
+    mediaType: item.media || '',
+    year: item.year || '',
+    aliases: extractAliasesFromItem(item),
+    matchLevel,
+    score: candidateScore(item, buckets.query),
+    isBestCandidate: bestTarget,
+    isFuzzy: matchLevel === 'fuzzyCandidate',
+    isRelated: matchLevel === 'relatedCandidate',
+    exclusionReason: bestTarget ? '' : candidateExclusionReason(matchLevel)
+  };
+}
+function candidateExclusionReason(matchLevel) {
+  if (matchLevel === 'fuzzyCandidate') return '曖昧一致のため本命候補から除外';
+  if (matchLevel === 'relatedCandidate') return '関連候補のため本命候補から除外';
+  return 'より高スコアの候補を優先';
+}
+function searchDebugSection(data) {
+  if (!isSearchDebugEnabled() || !data.searchDebug) return '';
+  return `<details class="panel search-debug" open><summary>検索デバッグ</summary><pre>${esc(JSON.stringify(data.searchDebug, null, 2))}</pre></details>`;
 }
 
 function runDiscoveryStage(buckets, query) {
@@ -475,7 +573,8 @@ function renderResults(data) {
   const tocItems = ['作品判定サマリー', ...visibleMedia, ...(fuzzyCandidates(data).length ? ['もしかして'] : []), ...(data.relatedCandidate.length || data.similar.length ? ['類似作品'] : []), ...(data.genres.length ? ['同ジャンル作品'] : []), '確認リンク', '出典'];
   $('#toc').className = `toc ${countClass('toc-links', tocItems.length)}`;
   $('#toc').innerHTML = tocItems.map(label => `<a href="#sec-${esc(label)}" ${actionAttrs(label)}>${esc(shortActionLabel(label))}</a>`).join('');
-  $('#resultsContent').innerHTML = [judgementSummarySection(data), ...visibleMedia.map(media => mediaSection(media, data[media], data.query, data)), maybeSection(data), relatedSection('類似作品', data.relatedCandidate.length ? data.relatedCandidate : data.similar), genreSection(data), confirmSection(data.query), sourceSection(data)].filter(Boolean).join('');
+  $('#resultsContent').innerHTML = [judgementSummarySection(data), ...visibleMedia.map(media => mediaSection(media, data[media], data.query, data)), maybeSection(data), relatedSection('類似作品', data.relatedCandidate.length ? data.relatedCandidate : data.similar), genreSection(data), confirmSection(data.query), sourceSection(data), searchDebugSection(data)].filter(Boolean).join('');
+  if (isSearchDebugEnabled() && data.searchDebug) console.debug('検索デバッグ', data.searchDebug);
   renderResultFavorite();
   $('#searchStatus').textContent = '検索が完了しました。';
   route('results');
@@ -633,6 +732,8 @@ function setup() {
   $('#searchForm').addEventListener('submit', async event => { event.preventDefault(); await runSearch($('#queryInput').value.trim()); });
   $('#saveTokenBtn').onclick = () => { localStorage.setItem(TMDB_TOKEN_KEY, $('#tmdbTokenInput').value.trim()); $('#settingsMessage').textContent = 'TMDb Read Access Tokenを保存しました。'; };
   $('#clearTokenBtn').onclick = () => { localStorage.removeItem(TMDB_TOKEN_KEY); $('#tmdbTokenInput').value = ''; $('#settingsMessage').textContent = 'TMDb設定を削除しました。'; };
+  syncSearchDebugToggle();
+  $('#searchDebugInput').onchange = event => { setSearchDebugEnabled(event.target.checked); $('#settingsMessage').textContent = event.target.checked ? '検索デバッグ表示をONにしました。' : '検索デバッグ表示をOFFにしました。'; };
   $('#exportBtn').onclick = exportJson;
   $('#importBtn').onclick = importJson;
   $('#clearSavedBtn').onclick = () => { if (confirm('保存済み作品をすべて削除しますか？')) { saved = []; persistSaved(); $('#dataMessage').textContent = '保存済み作品を削除しました。'; } };
