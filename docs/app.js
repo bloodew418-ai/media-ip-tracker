@@ -1,6 +1,6 @@
 const STORAGE_KEY = 'media-ip-tracker-v2-saved';
 const TMDB_TOKEN_KEY = 'media-ip-tracker-v2-tmdb-token';
-const SEARCH_DEBUG_KEY = 'media-ip-tracker-v2-search-debug';
+const SEARCH_DEBUG_KEY = 'mediaIpTracker.searchDebugEnabled';
 const mediaOrder = ['漫画', 'アニメ', 'ドラマ', '映画', '小説', '類似作品', '同ジャンル作品', '出典'];
 const visibleCandidateLimit = 3;
 const visibleSimilarLimit = 5;
